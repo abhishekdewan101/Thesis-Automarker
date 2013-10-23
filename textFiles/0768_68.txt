@@ -1,0 +1,3408 @@
+Abstract
+Clustering is one of the fundamental tasks of data mining. However, it is ill defined.
+There is no single definition of what a cluster is, and consecutively, an objective way
+to define the quality of a cluster. Nevertheless, traditional clustering methods produce
+a single solution, while data can be interpreted in many different ways and alternative
+clusterings may exist. In this project we define a taxonomy and present an overview
+of the existing alternative clustering methods. In addition, we have developed and
+implemented a new approach which extends the work presented in [De 11b], as part
+of the information theoretic framework for data mining [De 11a], which is based on
+the idea of the subjective interestingness of a clustering.
+Acknowledgements
+I would like to express my deepest appreciation and gratitude to my supervisor Tijl
+de Bie for his guidance and his patience throughout this project.
+IÕm also grateful to Professor Michael Vrahatis for the inspiration he gave me to
+continue my studies.
+Finally, words alone cannot express the thanks I owe to my mother, Vassiliki, for
+making everything possible for me.
+iv
+Contents
+Abstract iii
+Acknowledgements iv
+List of Figures vii
+1 Introduction 1
+1.1 Aims and objectives . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+1.2 Outline . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2 Background and general context 6
+2.1 Clustering . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+2.1.1 Proximity measures . . . . . . . . . . . . . . . . . . . . . . . . 8
+2.1.2 Clustering methods . . . . . . . . . . . . . . . . . . . . . . . . 9
+2.1.3 Clustering algorithm, an example: K-means . . . . . . . . . . 11
+2.2 Alternative Clustering . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+3 Alternative clustering methods 15
+3.1 Semi-Supervised . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+3.1.1 Conditional information bottleneck . . . . . . . . . . . . . . . 18
+3.1.2 Coordinated conditional information bottleneck . . . . . . . . 20
+3.1.3 Conditional ensemble clustering . . . . . . . . . . . . . . . . . 21
+3.1.4 COALA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+3.1.5 NACI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+3.2 Data transformation oriented . . . . . . . . . . . . . . . . . . . . . . 25
+3.2.1 A framework using orthogonalisation . . . . . . . . . . . . . . 25
+3.2.1.1 Orthogonal clustering . . . . . . . . . . . . . . . . . 26
+3.2.1.2 Clustering in orthogonal subspaces . . . . . . . . . . 27
+v
+Contents vi
+3.2.2 Finding alternative clusterings using constraints . . . . . . . . 27
+3.2.3 A principled and flexible framework . . . . . . . . . . . . . . . 28
+3.3 Unsupervised . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+3.3.1 De-correlated k-means and convolutional EM . . . . . . . . . 30
+3.3.2 CAMI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+4 Our approach 35
+4.1 An overview of the data mining framework . . . . . . . . . . . . . . . 35
+4.2 Prior beliefs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+4.3 The clustering pattern . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+4.4 Self information of a clustering pattern . . . . . . . . . . . . . . . . . 38
+4.5 The iterative data mining approach . . . . . . . . . . . . . . . . . . . 40
+4.5.1 Kernel based version . . . . . . . . . . . . . . . . . . . . . . . 42
+5 Validation and results 43
+5.1 Validation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 43
+5.2 Synthetic data with 4 clusters . . . . . . . . . . . . . . . . . . . . . . 45
+5.2.1 Using inner product . . . . . . . . . . . . . . . . . . . . . . . 46
+5.2.2 Using RBF kernel . . . . . . . . . . . . . . . . . . . . . . . . . 47
+5.3 Synthetic data with 3 clusters . . . . . . . . . . . . . . . . . . . . . . 48
+6 Conclusion and future directions 49
+6.1 Conclusion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 49
+6.2 Future directions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 50
+A Mathematical preliminaries 52
+A.1 Information theoretic concepts . . . . . . . . . . . . . . . . . . . . . . 52
+A.2 Linear algebra concepts . . . . . . . . . . . . . . . . . . . . . . . . . . 56
+B Parts of the source code 57
+B.1 Matlab code for synthetic data generation . . . . . . . . . . . . . . . 58
+B.2 Matlab code for an experiment . . . . . . . . . . . . . . . . . . . . . 59
+Bibliography 64
+List of Figures
+2.1 A typical clustering process. Data points are given as an input, features
+are selected or extracted, a proper pattern representation is selected,
+the clustering algorithm partitions the data based on proximity, the
+result may enter the validation loop and then clusters are revealed to
+the practitioner. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+2.2 A taxonomy of clustering algorithms . . . . . . . . . . . . . . . . . . 10
+2.3 Two different ways to cluster the same data set. . . . . . . . . . . . 13
+3.1 An illustration of the taxonomy for the alternative clustering methods 17
+4.1 A graphic representation of our approach. . . . . . . . . . . . . . . . 40
+5.1 Results of 1,000 repetitions. On axis x is shown the quality metric and
+on axis y the frequency. Bars in red represent the value of the quality
+metric for the random clustering, in green for the correct clustering and
+in blue for the first clustering found by our approach. . . . . . . . . . 45
+5.2 Using quality metric with inner product XXÕ . . . . . . . . . . . . . 46
+5.3 Using quality metric replacing the inner product XXÕ with an RBF
+kernel of width 3 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 47
+5.4 Using RBF kernel in a 3 clusters dataset . . . . . . . . . . . . . . . . 48
+vii
+Chapter 1
+Introduction
+ÒWhere is the Life we have lost in living?
+Where is the wisdom we have lost in knowledge?
+Where is the knowledge we have lost in information?"
+T.S. Eliot
+We are living in the Information age. The human kind had never before access to so
+much information so easily and so universally. The evolution of computers and more
+specifically the Internet, have played the central role in this spreading of information,
+providing the tools to transfer and store huge amounts of data. It is that information
+overload phenomenon and the thirst of human for knowledge that make data mining
+one of the most crucial fields in science. Knowledge discovery, defined by [FPSS+96]
+as Òthe non- trivial process of identifying valid, novel, potentially useful, and ultimately
+understandable patterns in dataÓ is more important than ever.
+One of the most effective ways to extract knowledge from data is by grouping it.
+Cluster analysis has been a fundamental and widely used task in data mining for
+discovering patterns, relationships and structures in an unsupervised manner. The
+1
+Chapter 1. Introduction 2
+problem lies in the very definition of clustering as a task; there is no objective way
+to define the quality of the clustering. Meanwhile, all the traditional clustering al-
+gorithms produce a single solution. We believe that different clusterings of the same
+data may exist and may be equally informative to different users. This idea is the
+motivation between the field of alternative clustering. In this context, there is no
+single solution for a given set of data, i.e. no optimal clustering; different clusterings
+emerge from different views of the same data.
+Although alternative clustering has been a new field of research, there are numer-
+ous different approaches from many different viewpoints which have appeared in the
+literature lately. These approaches usually differ in their task formulation and their
+mathematical perspective. At the same time, there exists no overview of these meth-
+ods, at least not to our knowledge. Thus, we have conducted a survey of the most
+important of them and a categorisation of is presented. This, is by itself important as
+it provides a solid source of information and references to the data miner and a basis
+for future, more updated and detailed surveys.
+Furthermore, alternative clustering arises yet another question: how can we quantify
+the interestingness of a clustering? We believe that there is no objective way to
+define interestingness ; it is a notion highly subjective to the practitioner. Thus, we
+bring into the picture of the data mining process the user, in a role equally important
+with that of the data. Based on the data mining framework [De 11a] we regard data
+mining as the information exchange between the data and the user, through a data
+mining algorithm and our ultimate goal is to update userÕs state of mind about the
+data.
+This project aims at creating a method that that will reduce userÕs uncertainty about
+the data using clustering. In order to do that as effectively as possible, we provide her
+with different clusterings, each of which is a different view of the data, in an iterative
+manner, one by one. From all the possible clusterings, we choose the interesting to
+be presented to the practitioner. Hence, we define a quality metric that quantifies
+Chapter 1. Introduction 3
+the notion of interestingness for a clustering. The process begins with taking into
+account userÕs prior beliefs about the data and continues iteratively. In each iteration
+her updated beliefs are incorporated in our model allowing us to search for the most
+interesting clustering given the userÕs current state of mind.
+We define all the aspects of our approach theoretically and we conduct experiments to
+prove the validation of our method. Most of the source code used for these experiments
+is available in B. In A the reader can find the mathematical preliminaries used for
+this work.
+1.1 Aims and objectives
+The core aims of this dissertation are two:
+The first, to present a coherent overview of the approaches in alternative clustering
+that will be a source of useful information to any practitioner of the field. This part
+is important since its the first try, to our knowledge, in the field.
+The second, to define our own approach. We are presenting a new method that
+takes into account not only the data but also the user and her beliefs in order to
+achieve a data mining task via clustering. This involves building a new theoretical
+model, extending the work in [De 11b] and performing experiments to argue about
+the validation of our approach.
+The first aimÕs objectives are:
+Decide on an appropriate taxonomy
+A categorisation that would better capture the main differences of the methods
+and cluster them based on that is essential.
+Chapter 1. Introduction 4
+Choose the representative methods for each category
+For each class of methods, the most important ones should be chosen based on
+their impact.
+The second aimÕs objectives are:
+Specify syntax of a pattern
+We will define the syntax of a clustering pattern based on constraints on certain
+statistics of the dataset.
+Search for the most interesting pattern
+The hardest part of the method, since we will present an approximate method
+based on spectral clustering in order to solve (provably good) an NP-hard prob-
+lem.
+Self-information of a pattern
+Define the quality metric we will use for the patterns in our approach.
+Build an iterative model
+Define how this model will work so that in each iteration weÕll take into account
+the previously found clusterings and search for the next most informative one
+given these clusterings.
+Validation
+Argue in favour of our quality metric.
+Conduct experiments
+Test our method on synthetic data in order to extract useful insights.
+Chapter 1. Introduction 5
+1.2 Outline
+This dissertation consists of 2 main parts. A survey of alternative clustering ap-
+proaches and our approach in the field.
+In Chapter 2, we present a general introduction to clustering. We briefly discuss what
+a proximity measure is, we present an overview of clustering methods as well as one
+of the most commonly used clustering algorithms; k-means. Finally, we introduce the
+reader to the field of alternative clustering.
+In Chapter 3, we present an in depth survey on most of the major alternative clustering
+approaches, we define a taxonomy of these methods and discuss their core assets.
+Chapter 4, is about our own approach to alternative clustering. The data mining
+framework, of which our approach is a special case, is overviewed. Most importantly,
+the core components of our approach, such as the prior beliefs of the user, the def-
+inition and the self information of a clustering pattern and finally the alternative
+clustering setting, are presented.
+Chapter 5, presents experimental results of our project. Specifically, we argue about
+the validation our quality metric and we present results based on synthetic data.
+Chapter 6, present our conclusions from the whole project as well as recommendations
+for future directions.
+Chapter 2
+Background and general context
+ÒEssentially, all models are wrong, but some are useful.Ó
+George E. P. Box
+2.1 Clustering
+If someone is given a number of different objects and is asked to group them, itÕs a
+fairly easy process. But if then we ask her to describe how she did it, the answer is
+not trivial and will vary. As people interact with data they try to find features that
+describe it according to their views about it, compare it and group it based on the
+underlying notion of similarity. Clustering is a natural concept and it is based on
+subjective views on the data. However, it is ill defined in the sense that there exists
+no strict definition of what a cluster is.
+Trying to describe it, we could say that it is the procedure of grouping a collection of
+unlabelled objects into subsets or ÒclustersÓ so that the objects assigned to the same
+cluster are more closely related or more similar to one another than objects assigned
+6
+Chapter 2. Background and general context 7
+to different clusters. This description makes it clear why there is a lack of strict
+definition; objects can not be grouped into clusters with a sole purpose in mind and
+not in a unique way. That is why the notion of ÒsimilarityÓ which will be generalised
+as ÒproximityÓ between objects is central for clustering.
+In order to do any comparisons, we first need a representation of them, usually as
+abstract points in an d-dimensional space, depending on the number of their d features
+we are interested about. This should be the first step in any typical clustering process
+as described by [JD88] and [XW05]:
+1. Data representation and feature selection or extraction. As pointed
+by [JMF99], data representation is about defining the number of data points
+and the number, type and scale of features. Then, via feature selection some
+distinguishing features will be selected, while some new ones will be generated
+via feature extraction [Bis95].
+2. Defining the suitable proximity measure. A distance function must be
+used in order to quantify the proximity between the pairs of data points.
+3. Clustering. This step can be utilised in various ways, depending on the choice
+of the clustering method. Essential for the clustering process is the clustering
+criterion, which as defined by [TK08], is an interpretation of what the prac-
+titioner defines as ÒsendibleÓ based on what kind of clusters she expects to be
+underlying in the data and is usually presented in the form of a cost function.
+4. Clusters validation. Since each clustering algorithm will eventually present
+a partitioning of the data, even if it is false or ÒmeaninglessÓ to the user, it is
+crucial to evaluate the results. The evaluation should be unbiased towards the
+clustering algorithms and provide the user with a degree of confidence.
+5. Data abstraction. This is an optional step and it about choosing a simple
+and elegant way to interpret the results in order to provide meaningful insights
+about the data to the practitioner.
+Chapter 2. Background and general context 8
+Feature 
+selection or 
+extraction
+Clustering 
+algorithm Clusters
+Clusters 
+validation
+Data
+Figure 2.1: A typical clustering process. Data points are given as an input,
+features are selected or extracted, a proper pattern representation is selected, the
+clustering algorithm partitions the data based on proximity, the result may enter
+the validation loop and then clusters are revealed to the practitioner.
+2.1.1 Proximity measures
+In order to quantify similarity, the notion of proximity measure is introduced, as
+a way of quantifying how similar (or usually how different) two patterns are. Every
+clustering technique is trying to group the patterns based on a pre-defined proximity
+measure. Different proximity measures may produce different clusterings of the same
+data. ThatÕs why it is crucial for the clustering practitioner to be able to identify the
+right proximity measure for her purpose.
+A common representation of proximity, is by proximity matrices which are given as
+an input to many clustering algorithms. Such a matrix for N objects is a symmetrical
+N ? N matrix D, with zero diagonal entries, where each entry dij has a record of
+the proximity between the ith and jth object, for i, j = 1, . . . , N and contains all the
+information about the proximities between all the pairs of the N patterns. This is so
+crucial for clustering that we could argue that clustering methods are just the way of
+summarising the information contained in that matrix in an understandable way for
+the data miner.
+Definition 1. Metric is a function d : X ?X ? R such that ?x, y ? X it satisfies:
+Chapter 2. Background and general context 9
+1. d(x, y) ³ 0 and d(x, y) = 0? x = y (positive definiteness)
+2. d(x, y) = d(y, x) (symmetric)
+3. d(x, z) ² d(x, y) + d(y, z) (triangle inequality)
+The most often setting for calculating the proximity between a pair of patterns xi, xj,
+in order to build the proximity matrix, is by using a distance (metric) to quantify
+the dissimilarity between them. The most common choice is the use of the Euclidian
+metric:
+d2(xi, xj) =
+ÃÃÃÃ n·
+k=1
+(xi,k, xj,k) = ||xi ? xj||2
+as it provides an intuitive sense of distance for patterns in two or three dimensional
+spaces (n is the dimension of the space) and is a special case (p = 2) of the more
+general Minkowski metric:
+d(xi, xj) =
+( n·
+k=1
+(xi,k, xj,k)
+) 1
+p = ||xi ? xj||p
+Many times, features of the patterns may not be comparable in this way, so there also
+exist other ways of computing the proximity between two patterns e.g using different
+metrics, combinations of them or even completely different settings depending on the
+representation which is used, many of which are presented in [TK08].
+2.1.2 Clustering methods
+Based on the taxonomy presented by [JMF99], there are two main categories in clus-
+tering algorithms: Hierarhical and Partitional methods which are also divided in
+subcategories as seen in Figure 2.2.
+Briefly, Hierarchical methods first organise the data into a nested sequence of groups,
+like a dendodiagram, so that the data miner is able to choose a clustering in a certain
+Chapter 2. Background and general context 10
+level of proximity. Partitional methods on the other hand, select a clustering criterion
+and evaluate it for all possible partitions of the data containing a fixed number of K
+clusters. This however, is a difficult combinatorial problem and other, more optimised
+methods exist for Partitional clustering i.e. begin with an initial partition of the data
+and move objects as the clustering criterion function improves.
+Clustering algorithms
+Hierarhical Partitional
+Single link Complete link Square error Graph theoretic Mixture resolving Mode seeking
+K-means Expectation maximazation
+Figure 2.2: A taxonomy of clustering algorithms
+In order for this taxonomy to be sound, we need to mention some of the other di-
+chotomies which appear throughout all of its levels as they have been presented by
+[JMF99] and [JD88].
+¥ Agglomerative versus Divisive: An agglomerative method begins with each ob-
+ject as cluster and keeps merging clusters while a divisive method goes the
+opposite way beginning with a single cluster and keeps splitting.
+¥ Monothetic versus Polythetic: A monothetic method uses one feature at a time
+while polythetic uses all features at once.
+¥ Hard versus Fuzzy : A hard method allows each object to be assigned in only
+one clustering while a fuzzy method uses degrees of membership for an object
+to several clusters.
+Chapter 2. Background and general context 11
+Of course this is just a part of the existing categorisations of clustering methods, but
+we believe that these are the essential categories that the reader must keep in mind
+for the scope of this report. More about the clustering methods can be found on the
+surveys of [XW05] and [JMF99].
+2.1.3 Clustering algorithm, an example: K-means
+To fully understand how a clustering method works, we must get insight in an existing
+clustering algorithm, which in our case will be one of the most widely used; the K-
+means algorithm.
+In this section we will present the K-means algorithm as a variant of the Expectation-
+Maximisation (EM) algorithm [DLR77] in the way it is described by [Bs06].
+Given a data set of N data points {x1, . . . , xN} existing in an d-dimensional space,
+we want to partition them into K clusters, where K is a given number. We introduce
+the notation of prototypes µk, for k = 1, . . . , K as d-dimensional vectors associated
+with the kth cluster which represent the centres of the clusters. To indicate in which
+clusters a data point xn is assigned to, we introduce the notation of a set of indicator
+variables rnk ? {0, 1}, for k = 1, . . . , K. We also define the objective function J , also
+known as a distortion measure as
+J =
+N·
+n=1
+K·
+k=1
+rnk||xn ? µk||2
+We are aiming at finding a set of {rnk}, an assignment of the N data points to the K
+clusters, and a set of vectors {µk} where J , the sum of the squares of the distances
+of each data point from its closest prototype µk, is minimum.
+We can reach our goal through an iterative process consisting of two successive steps in
+each iteration. The first (Expectation) step optimises J with respect to {rnk} keeping
+Chapter 2. Background and general context 12
+{µk} fixed, while then second (Maximisation) step optimises J with respect to {µk}
+keeping {rnk} fixed.
+Algorithm 1 K-means
+initialise the set of prototypes {µk} to random values.
+while the assignments in the expectation step do not change do
+expectation step. Each data point xn is assigned to the closest centre.
+rnk =
+{
+1 if k = arg minj ||x+ n? µj||2
+0 otherwise
+maximisation step. Update
+µk =
+·
+n rnkxn·
+n rnk
+end while
+2.2 Alternative Clustering
+As we stated in the previous chapter, Clustering is an ill-defined notion which is
+highly subjective. In other words, we are unable to define a ÒcorrectÓ clustering in an
+objective way. What is more, it has been proved by [Kle03] that for three fundamental
+properties of clustering: scale-invariance, richness and consistency, there exists no
+single clustering of the data that satisfies all of them.
+For example, a user may be supplied with data about a group of people. She may
+already be aware of the clusters ÒwomenÓ and ÒmenÓ or simply not interested in these,
+and she would prefer a clustering that would provide more knowledge. Another trivial
+example is shown in Figure 2.3, where there are two different clusterings for the same
+data, potentially with equal importance for the user.
+Chapter 2. Background and general context 13
+One motivation behind alternative clustering, and our approach, is to take into ac-
+count any prior knowledge the user may have about the data and use it to obtain
+new, more useful results and update her knowledge. The question arising is if there
+exist any other clusterings of the data that are potentially equally or more interesting
+to the user. This question is the main motivation for alternative clustering.
+Other motivations are to provide user with options so she can discover what she wants
+even if initially she didnÕt know, provide different viewpoints for the data or sometimes
+even verify whether multiple explanations exist or not.
+A B
+A
+B
+Same data, different views
+Figure 2.3: Two different ways to cluster the same data set.
+A definition for the alternative clustering problem is given by [DQ08] and [QD09]:
+Òfor a given objective function f and an existing clustering C such that f(C) = x does
+there exist an alternative clustering C ? such that C 6= C ? and f(C) Å f(C ?)?Ó
+Or as given by [BB06]: ÒGiven a clustering C with r clusters, find a second cluster-
+ing C ? with r clusters, having high dissimilarity to C, but also satisfying a quality
+requirement threshold ?Ó
+Chapter 2. Background and general context 14
+But still, more questions arise. Questions that act as motivations for various aspects
+in alternative clustering.
+¥ How much should C and C ? overlap?
+¥ Should they be totally different?
+¥ Can quality be defined objectively?
+¥ What is the trade-off between ÒalternativenessÓ and quality?
+Chapter 3
+Alternative clustering methods
+ÒScience is what we understand well enough to explain to a computer.
+Art is everything else we do."
+Donald Knuth
+Despite the fact that alternative clustering did not get much attention in the literature
+until recently, there is a rapidly growing number of different approaches.
+One main difference in these approaches is in the task formulation. In our survey
+we will exploit this difference in order to categorise the different approaches into two
+main categories: Semi-supervised and Unsupervised. Here, the term Òsemi-supervisedÓ
+is used to imply that these approaches take into account some kind of side information
+(e.g. cannot-link constraints, negative information) while ÒunsupervisedÓ approaches
+use no a priori knowledge.
+Since the unsupervised approaches use no a priori knowledge, they produce a number
+of clustering solutions simultaneously while the semi-supervised, based on existing
+knowledge produce their solutions in a sequential way.
+15
+Chapter 3. Alternative clustering methods 16
+¥ Simultaneous generation of alternative clusterings: Simultaneous gener-
+ate a set of clusterings {C1, . . . , Cn} such that each Ci, for i = 1, . . . , n is of high
+quality and ?(Ci, Cj), i 6= j Ci 6= Cj.
+¥ Sequential generation of alternative clusterings: Given a set of clusterings
+{C1, . . . , Cn} generate a new clustering Cn+1 such that Cn+1 is of high quality
+and not similar to any of the previous n clusterings Repeat until a criterion is
+satisfied.
+Another main difference, that will be significant enough to create a third category of
+approaches, is the style of the algorithm. Some of them are based on data transforma-
+tion, projecting data into an orthogonal subspace and then perform clustering aiming
+for a new clustering solution, while others are based on creating a new objective func-
+tion that will produce an alternative clustering trading-off quality and dissimilarity
+of the solution produced. It is obvious that the first category (data transformation)
+can only be part of the semi-supervised methods since it uses an existing clustering.
+¥ Data-transformation-oriented approaches try to transform the data by pro-
+jecting it into an orthogonal subspace so that the clustering algorithm is more
+likely to find novel features of the data and thus generate an alternative clus-
+tering.
+¥ Objective-function-oriented approaches try to address the alternative clus-
+tering problem using different objective functions that take into account quality
+and dissimilarity of the alternative clustering(s) generated.
+Chapter 3. Alternative clustering methods 17
+CIB
+CCIB
+COALA
+NACI
+ Dec. k-means
+Conv EM
+CAMI
+Orthogonalisation
+ADFTAlternative 
+Clustering
+Semi-supervised
+Data transformation
+Unsupervised
+A principled and 
+!exible framework
+Figure 3.1: An illustration of the taxonomy for the alternative clustering methods
+In conclusion, for the scope of this survey we will categorise the different approaches
+into three different categories that better reflect their differences:
+1. Semi-supervised
+2. Data transformation oriented
+3. Unsupervised
+and we will present the most representative approaches of each category.
+3.1 Semi-Supervised
+The approaches described in this category take into account an existing clustering
+solution as side information. Their sequential manner of producing solutions makes
+them greedy since in each step they choose to produce the optimal clustering in means
+of dissimilarity and quality with respect to some previous clustering solution.
+Chapter 3. Alternative clustering methods 18
+The main drawback of this category of approaches is that many times clustering is
+used as the first step in a data mining task and no previous knowledge about the data
+is given.
+In the context of sequential generation of alternative clustering, the alternative clus-
+tering problem can be defined [DQ08] [QD09] (and slightly different by [BB06]) as fol-
+lows: Òfor a given objective function f and an existing clustering C such that f(C) = x
+does there exist an alternative clustering C ? such that C 6= C ? and f(C) Å f(C ?)?Ó
+3.1.1 Conditional information bottleneck
+One of the first approaches to alternative clustering was as an application of the
+Conditional Information Bottleneck (CIB), a framework proposed by [GH03] as a
+generalisation of the well known Information Bottleneck method (IB) [TPB00].
+The a priori known structures or properties of the data are regarded as side infor-
+mation and the goal is to maximise the conditional information about the relevant
+structures, conditioning on side information. An application of this general frame-
+work is an alternative clustering setting, where a known categorisation of the data is
+seen as side information, and the goal is to obtain a new clustering solution.
+Information bottleneck
+In Information bottleneck, structure extraction is modelled as data compression and
+the relevance of the extracted structure is quantified by the info it preserves about
+a specified relevance variable. Given two variables X (i.e. objects) and Y (i.e. fea-
+tures) and their joint distribution, the shared information between these two variables
+is maximised while one is compressed through a third variable C (i.e. clusters). This
+Chapter 3. Alternative clustering methods 19
+method proposes a probabilistic clustering setting, in which given a stochastic map-
+ping P (c|x) of objects to clusters and some side information as a random variable Z
+:
+min
+p(c|x)
+F ? I(X,C)? ?I(Y,C|Z)
+s.t.
+·
+c
+p(c|x) = 1,?x, c and p(c|x) ³ 0
+where ? is a positive scalar that balances the trade-off between compression and
+preservation of information about the features of interest.
+where
+p(c|x) ? q(c) exp (?·
+y
+p(y|x) log q(y|c)) = p(c) exp (? ?DKL(p(y|x)||p(y|c)))
+and q(c) and q(y|c) are auxiliary parameters.
+Conditional information bottleneck
+In CIB, a new variable Z is introduced, representing the pre-defined class labels of the
+given clustering (as negative information) and the new objective is to find the optimal
+assignment of X to C while preserving as much information about Y conditioned on
+Z as possible. The new objective function is
+F÷ = ?H(C|X) + H÷(C) + ?H÷(Y |Z,C)
+CIB is looking for a probabilistic assignment of data to clusters with minimal fuzziness
+and at the same time maximal information encoded jointly in variables C and Z.
+Chapter 3. Alternative clustering methods 20
+P ?C|X = arg max
+PC|X?P
+I(C;Y |Z)
+P ? {PC|X : I(C;X) ² Cmax}
+All in all, CIB is a relatively old and outdated approach which however, paved the
+way for future approaches and alternative clustering as a field. The major drawback
+of this method, is its prerequisite for a joint distribution, which is known to be hard
+to formalise.
+3.1.2 Coordinated conditional information bottleneck
+An extension to the previous framework (CIB 3.1.1) was presented by the same au-
+thors in [GH04], called Coordinated Conditional Information Bottleneck (CCIB).
+The authors base their new approach on a weakness of their previous framework, CIB.
+Since I(C;Y, Z) measures the information conveyed by C and Z in conjunction, it
+lacks in presenting the amount of information C provides without knowledge of Z.
+Or as they call it cluster coordination problem.
+They address this problem by using an additional constraint regarding I(X;Y ):
+P ?C|X = arg max
+PC|X?P
+I(C;Y |Z)
+P ? {PC|X : I(C;X) ² Cmax, I(C;Y ) ³ Imin}
+Chapter 3. Alternative clustering methods 21
+3.1.3 Conditional ensemble clustering
+The third work in this line by Gondek and Hofmann [GH05], present a framework that
+is also driven by side information, but this time, it is about negative side information
+i.e. undesired clustering. They argue that it is usually easier for the user to define
+what she is not looking for rather than what she is looking for.
+The framework, given a dataset {x1, . . . ,xn}, a clustering Z : {1, . . . , n} ? {1, . . . , l},
+the number k of target clustering and the number kj for each local clustering, works
+in 3 stages:
+1. Compute local clusterings for each cluster of the given clustering
+Partition data set into pre-image sets:
+Ij(Z) ? {i : Z(i) = j} and Xj(Z) ? {xi : i ? Ij(Z)}, j = 1, . . . , l
+Apply base clustering method to each Xj(Z) to find a local clustering
+Cöj : Ij(Z)? {1, . . . , kj}, j = 1, . . . , l
+2. Extend local clustering solutions to global clusterings
+Extend each Cöj to a global clustering Cj by assigning given instances in Xm(Z),
+m 6= j to one of the existing clusters
+Cöj : {1, . . . , n} ? {1, . . . , kj}, j = 1, . . . , l
+3. Combine clustering solutions using an ensemble clustering
+Clustering solutions Cj are combined to form the consensus clustering:
+C = Consens(C1, . . . , C l), where C : {1, . . . , n} ? {1, . . . , k}
+An advantage of this framework is its flexibility to use different clustering methods
+on the second step. This, allows the user to employ a clustering algorithm according
+to the specific domain of the data.
+Chapter 3. Alternative clustering methods 22
+3.1.4 COALA
+Another technique, that falls into the category of semi-supervised alternative clus-
+tering, known as COALA [BB06], is based on optimising an objective function that
+combines the requirements for disimilarity and quality for the generated alternative
+clustering.
+The first requirement, which tries to ensure that given a new clustering S as a solution,
+S is as dissimilar as possible from an already known clustering C, is addressed by using
+instance-based pairwise Ôcannot-link Õ constraints. The second requirement, which tries
+to ensure that a clustering that presented as solution is of high quality and depends
+on the distance function used, is addressed by a pre-specified quality threshold ? that
+plays the role of balancing the trade-off between the two requirements.
+More specifically, COALA is based on an agglomerative hierarchical algorithm, using
+average-linkage [Voo86] as a distance function. The technique works in two steps.
+The first, can be seen as a preliminary process that will make use of the existing
+clustering to generate the constraints that will be used in the second step, where the
+alternative clustering will be generated.
+Algorithm 2 Constraints generation
+Require: clustering C = {c1, . . . , cn}, constraints set L = {}
+for i = 0 to n do
+for j = 0 to |ci do
+for k = j + 1 to |ci do
+L = L ? addConstraint(xj, xk)
+end for
+end for
+end for
+The second step is that of a classical hierarchical algorithm, where n different clus-
+ters are being initially generated and then iteratively start merging. Here, COALA
+defines the candidates for this merging categorising the pairs of objects into qualita-
+tive ((q1, q2)) and dissimilar ((o1, o2)). The first, denotes the pairs with the smallest
+Chapter 3. Alternative clustering methods 23
+distance and the second the pairs with the smallest distance conditioned on the con-
+straints. The motivation behind generation of the dissimilar pairs, is the hope to
+satisfy the dissimilarity requirement for the overall clustering by building it (i.e. hi-
+erarchical agglomerative) by choosing dissimilar pairs.
+However, the quality component isnÕt ignored by the technique, which uses the quality
+threshold ? to decide each time in favour of a qualitative or a dissimilar merging. This
+is done by comparing the ratio dq
+do
+with ?. This reveals the crucial role that the user
+choice of ? plays in balancing the trade-off between quality and dissimilarity.
+In order to quantify the dissimilarity, COALA uses the Jaccard Index [PM06] which
+measures the dissimilarity between two clusterings C and S as:
+J(C, S) =
+C ? S
+C ? S =
+M11
+M11 +M01 +M10
+whereM11 is the number objects in the same cluster for both clusterings andM01,M10
+are the number of objects that exist in the same cluster for one clustering but not the
+other.
+To measure quality, the Dunn Index [Dun73] for a clustering C = {c1, . . . , cn} is used:
+DI(C) = min
+i²n
+{
+min
+1²j²n,i 6=j
+{
+d(ci, cj)
+max1²k²n d?(ck)
+}}
+where d(i, j) is the distance between clusters i and j, and d?(k) is a cluster diameter
+measure for cluster k.
+The authors also propose DQ-Measure [BB06], an overall measure for quality and
+dissimilarity between two clusterings C and S which combines the two measures
+stated above:
+Chapter 3. Alternative clustering methods 24
+DQ(C, S) =
+2J(C, S)DI(C, S)
+J(C, S) +DI(C, S)
+3.1.5 NACI
+A method called NACI (Non-linear Alternative Clustering with Information theory) is
+presented in [DB10b]. This method also tries to balance the trade-off between quality
+and dissimilarity of the generated alternative clustering via a dual objective function
+(similarly to COALA 3.1.4).
+This technique tries to optimise a clustering objective function based on mutual infor-
+mation; the mutual dependence between C+, the clustering labels, and X, the data
+observations. Intuitively, this states that given some data observations X we can
+infer the information about the values of the clustering labels with small error. Using
+FanoÕs inequality from information theory, which relates the average information lost
+to the probability of categorisation error:
+P (c+ 6= c?+) ³ H(C
++|X)? 1
+log |C ?| =
+H(C+)? I(C+;X)
+log |C+|
+where H(C+|X) is the conditional entropy of C ? given X, c+ and c?+ represent the
+true and the guessed cluster labels of C ? given X. This means that the lower bound
+provided by FanoÕs inequality about the error probability is minimised as the mutual
+information between C+ and X is maximised. Hence, the dual objective function is
+defined as:
+C ? = arg max
+C+
+{I(C+;X)? ?(C+;C?)} (3.1.1)
+for some parameter ? which balances the trade-off of dissimilarity and quality.
+Chapter 3. Alternative clustering methods 25
+In order to optimise (3.1.1), NACI uses the classic agglomerative hierarchical method.
+However, instead of deciding the merging between two clusterings in C+ based on their
+distance, this technique merges them only if such a merging results in an increased
+global mutual information I(C+;X) and a minimised I(C+;C?).
+3.2 Data transformation oriented
+Data transformation oriented methods, are part of the semi-supervised methods, in
+the sense that they use an existing clustering as side-information in order to produce
+a new clustering solution. They distinguish themselves from the approaches of the
+previous section since they use this side-information in a completely different manner.
+These approaches transform data into new subspaces in order to get novel clusterings.
+3.2.1 A framework using orthogonalisation
+In [CFD07], the authors present a framework that includes two methods that use data
+projection of the data in order to obtain new, non-redundant clusterings. Intuitively,
+this framework proposes an initial clustering of the data, then a transformation of the
+data into an orthogonal space (which is not covered by the existing clustering) and
+iterate until most of the data space is covered.
+The first method performs orthogonal clustering (seeks orthogonality in the cluster
+space) while the second performs clustering in orthogonal subspaces (seeks orthogo-
+nality in the feature subspace). The distinction between the two methods proposed
+is based on the representation of the given clusterings and consequently in the way
+the orthogonalisation of the data is achieved.
+Chapter 3. Alternative clustering methods 26
+In the first method (3.2.1.1), a clustering solution is represented using the k centroids,
+while in the second method (3.2.1.1), using the feature subspace that best captures
+the clustering.
+3.2.1.1 Orthogonal clustering
+In this method, clustering is viewed as a way of compressing data X ? Rd?N , where
+each data point xi ? Rd, i = 1, . . . , N is represented by its centroid µj, j = 1, . . . , k.
+The space spanned by xi is the data space while the space spanned by mj is the
+compressed data space. Using this representation, the authors, project data points
+from the original data space to the compressed data space. What is not covered by
+the compressed data space is called the residue space, which the authors define as
+the space as the data projected onto the space orthogonal to a given representation.
+Hence, to find alternative clusterings, the method performs clustering in that space.
+Given a clustering of the data X(t), M (t) = [µ(t)1 , . . . , µk](t), a representation in the
+residue space depends on the fuzziness of the membership of each data point to a
+cluster.
+1. For hard clustering, where each data point xi belongs only to cluster j, it is
+projected on centroid µj and the residue x
+(t+1)
+i is the projection of x
+(t)
+i to the
+subspace orthogonal to µj through the following equation:
+x
+(t+1)
+i =
+I? µ(t)j µ(t)
+?
+j
+µ
+(t)?
+j µ
+(t)
+j
+x
+(t)
+i
+2. For soft clustering, where each data point xi has a degree of membership to all
+clusters, the data is projected to the space spanned by all the centroids of the
+clustering, and the residue space X(t+1) is found as the projection of X(t) to the
+Chapter 3. Alternative clustering methods 27
+space orthogonal to all centroids using the following equation:
+X(t+1) = (I?M (t)(M (t)?M (t))?1M (t)?)X(t)
+3.2.1.2 Clustering in orthogonal subspaces
+In this method, the representation of a given clusteringM = [µ1, . . . , µk], is by finding
+the feature subspace that best captures the clustering structure. This can be achieved
+either by applying either Linear Discriminant Analysis (LDA) or Principal Component
+Analysis (PCA), both giving similar results.
+After finding the feature subspace A = [?1, . . . , ?k?1], the dataset X(t) is projected to
+a space orthogonal to A to obtain the residue X(t+1):
+X(t+1) = P (t)X(t)
+= (I? A(t)(A(t)?A(t))?1A(t)?)X(t)
+3.2.2 Finding alternative clusterings using constraints
+The approach presented in [DQ08], transforms data X into a new space X ? either
+by applying X ? = D?TX for some distance function D and lets the algorithm use its
+distance function e.g. the Euclidian, or the algorithm uses data X replacing with its
+distance function with D?. Given an initial clustering pi of the data X, the whole
+process can be summarised in 3 steps:
+Characterising step using constraints
+Based on clustering pi, extract a set of must-link or cannot-link constraints C,
+Chapter 3. Alternative clustering methods 28
+and learn a distance function Dpi from C. This can be achieved in a variety of
+ways [XNJR03].
+Alternative calculation
+Find an alternative distance function D?pi from Dpi by applying a single value
+decomposition (SVD) to Dpi, such that Dpi = HSA, where H the hanger matrix,
+S the stretcher matrix and A the aligner matrix. Hence, D?pi = HS?1A.
+Transformation
+Use D?pi to transform the data: X ? = D?Tpi X.
+Re-clustering
+Perform clustering on the transformed data X ?.
+A big advantage of this approach is its algorithm-independent manner, which
+allows the user to choose the clustering method that better fits her needs.
+3.2.3 A principled and flexible framework
+The framework proposed in [QD09], by the same authors as the previous approach
+(3.2.2), which share the same algorithm-independent nature, suggests that the
+user should be able to define some of the properties of the existing (given) clustering
+into his new, alternative clustering solution. This means that the user is able to find
+a partially alternative clustering instead of a completely new one. This is achieved by
+creating a transformation matrix which transforms the data into a new space and at
+the same time it preserves the properties of the data while it takes into account the
+userÕs feedback on the previous clustering.
+The method transforms a dataset X = {x1, . . . , xn}, X ? Rd?n, with a given cluster-
+ing pi containing clusters C1, . . . , Ck with centroids [µ1, . . . , µk], through a transfor-
+mation matrix D ? Rd?d matrix to a transformed dataset Y = DX, Y ? Rd?n. The
+alternative clustering pi? will be produced by applying any clustering algorithm on Y .
+Chapter 3. Alternative clustering methods 29
+The formulation proposed minimises a Kullback-Leibler (A.1) divergence between the
+original (px) and the transformed data distribution (py), constrained on the properties
+of the previous clustering that should be kept:
+min
+B³0
+DKL(pY (y)||px(x))
+s.t.
+1
+n
+n·
+i=1
+k·
+j=1,xi 6?Cj
+||(xi ? µj)||?B ² ?
+where B is the weight matrix B = D?D and ||  || denotes the Mahalanobis distance.
+An assumption being made is that each cluster in the alternative clustering pi? follows
+a multivariate Gaussian distribution with the same covariance matrix ? (A.1). The
+parameter ? ³ 1 defines the trade-off between dissimilarity and quality of the new
+clustering.
+3.3 Unsupervised
+Unsupervised (simultaneous creation of clustering solutions) approaches are non-
+greedy. They generate a globally optimal collection of n different clusterings of the
+data. Since no previous clusterings are given as an input, this kind of approaches
+are closer to the unsupervised nature of clustering. Their drawback, however, is that
+generating n alternative clusterings at once, may be a much harder optimisation
+problem.
+Chapter 3. Alternative clustering methods 30
+3.3.1 De-correlated k-means and convolutional EM
+De-correlated k-means
+In this approach, proposed in [JMD08], an objective function is formulated that com-
+bines the error of a clustering an a correlation between clusterings. The authors
+introduce a measure of correlation between clusterings and present a k-means-style
+(2.1.3) algorithm for minimising it.
+More specifically, given a dataset X = {x1, . . . , xn} ? Rd, the method partitions X
+into two clusters C1 and C2 with M1 and M2 groups respectively. In order to achieve
+this goal, the method tries to find decorrelated clusterings each of which is a complete
+partition of the dataset X.
+The objective function that needs to be minimised is the following:
+G(µ1...M1 , µ1,...M2) =
+·
+i
+·
+z?C1i
+||z ? µi||2
++
+·
+j
+·
+z?C2j
+||z ? ?j||2
++ ?
+·
+i,j
+(?j
+?µi)2
++ ?
+·
+i,j
+(?i
+??i)2
+where C1i the ith cluster of the first clustering, C2j the jth cluster of the second clus-
+tering, ? > 0 a parameter that trades off the clustering error and decorrelation of the
+clusterings , µi is the representative vector for C1i and ?j the representative vector for
+C2j , ?i the mean vector of C1 and ?j the mean vector of C2.
+Chapter 3. Alternative clustering methods 31
+The first two terms of the objective function are about the clustering error, similar to
+the error type of k-means, with the difference that the representative vectors are not
+always the mean vectors. The other two terms measure the decorrelation between the
+two clusterings.
+The approach initialises one of the two clusterings using k-means with k = M1 and
+the other one randomly. To optimise this objective function iteratively, in each step
+µi and ?j must be updated:
+µi = (I ? ?V Q(I + ?i?)?1Q?V ?)?i
+?j = (I ? ?jMU(I + ?j?)?1U ?M ?)?j
+where xii = ?·
+j nij
+, V = [?1, . . . , ?M2 ], V ?V = Q?Q? the eigenvalue decomposition,
+?j =
+?·
+i nij
+, M = [?1, . . . , ?M1 ] and M ?M = U?U ? the eigenvalue decomposition.
+Convolutional EM
+This method, also known as Sum of parts approach, was proposed together with the
+previous one in [JMD08], although it is in a complete different line except the part that
+they are both completely unsupervised. The main idea is that the data is modelled
+as a sum of independent mixtures models. Each of these independent components is
+associated with a clustering.
+Extending the previous methodÕs notation, a set of observations Z = {x1, . . . , xn} ?
+Rd, sampled from a random variable Z, the method models Z as the summation of
+two random variables, X and Y .
+The approach models the data as a sample of a convolution of two mixtures. Thus,
+it deals with the problem of learning a convolution of mixtures.
+Chapter 3. Alternative clustering methods 32
+pX =
+M1·
+i=1
+?ipXi , pY =
+M2·
+i=1
+?jpXj
+pZ(z) = (pX  pY )(z) =
+M1·
+i=1
+M2·
+i=1
+(?i?j)(pXipYj)
+More specifically, given the data Z, find the parameters of pX , PY and the weights
+?i, ?j. In order to do that, the authors propose an EM algorithm. Under the assump-
+tion that the X, Y are mixtures of spherical Gaussian distributions:
+pX =
+M1·
+i=1
+?iN (µi, ?2), pY =
+M2·
+i=1
+?jN (?i, ?2)
+The algorithm is initialised by k-means for the first clustering and a random assign-
+ment for the second clustering, the vectors µ0i and ?0j to the means of the first and
+second clustering and finally ? = 1Ã
+2m
+(mini 6=j ||µ0i ?µ0j ||, ||?0i ??0j ||). Let ptij(z) denote
+the conditional probability that z comes from the normal distrubution pX  pY given
+the current parameters.
+E-step:
+pt+1ij (z) =
+?????1, if (i, j) = arg max( r, s){a
+t
+rb
+t
+s  N (µtr + ?ts , 2(?sigmat)2)(z)}
+0, otherwise
+M-step:
+µi = (I ? ?iV Q(I + ??)?1Q?V ?)(?i ?
+·
+j nij?j·
+j nij
+)
+Chapter 3. Alternative clustering methods 33
+?j = (I ? ?jMU(I + ?j?)?1U ?M ?)(?j ?
+·
+i nijµi·
+i nij
+)
+3.3.2 CAMI
+An information theoretic approach, called CAMI, based the concepts of mutual infor-
+mation (A.1) and maximul likelihood (A.1), is presented in [DB10a]. The approach,
+which produces simultaneously two different clusterings, is optimising an objective
+function which combines quality and dissimilarity, as other methods weÕve previously
+discussed do. Maximum likelihood is used to ensure quality, while mutual informa-
+tion ensures dissimilarity since it is minimised between the two different clustering
+solutions produced.
+Any clustering solution is seen as a mixture of models, where each distribution in
+the mixture corresponds to a cluster, and the cluster label C is seen as the missing
+data Y in the EM algorithm (A.1). Given a dataset X ? Rd?n, the method produces
+two clustering solutions C1 and C2 parameterised by ?1 and ?2 respectively, which
+partition the set into two groups M1 and M2 whose similarity is minimised. Let ? be
+a combination of ?1 and ?2, the log-likelihood function is:
+L÷(?;X) = L(?1;X) + L(?2;X)? ?I(C1;C2|?)
+the log-likelihood terms L(?1;X) and L(?2;X) correspond to the quality of the two
+clusterings while the mutual information term I(C1;C2|?) to their dissimilarity. The
+parameter ? > 0 balances the trade-off between dissimilarity and quality.
+Assuming that the partitions are independent, the mutual information is the pair-
+wise mutual information between the two clustering solutions becomes I(C1;C2|?) =·
+i,j I(c1i, c2j|?ij) where c1i is the ith cluster from the first clustering and c2j the jth
+Chapter 3. Alternative clustering methods 34
+cluster from the second clustering. The authors also define the mutual information of
+a cluster c1i to the clustering C2 as:
+I(c1i;C2) =
+·
+c2j?C2
+p(c1i, c2j) log
+p(c1i, c2j)
+p(c1i)p(c2j)
+and from the properties of mutual information the objective function becomes:
+L÷(?;X) = L(?1;X) + L(?2;X)? ?
+·
+i,j
+p(c1i, c2j) log p(c1i, c2j)
+A variant of the EM algorithm (A.1) is then applied (the details of the algorithm are
+out of the scope of this dissertation and can be found in the original paper [DB10a]).
+Chapter 4
+Our approach
+ÒThe quiet statisticians have changed our world - not by discovering new facts or
+technical developments but by changing the ways we reason, experiment and form
+our opinions about it."
+Ian Hacking
+4.1 An overview of the data mining framework
+Our approach in alternative clustering falls into the context of a general information
+theoretic data mining framework presented in [De 11a] by Tijl de Bie. It is crucial to
+briefly overview the main concepts of this framework in order for the reader to get an
+insight that is essential towards the understanding of our approach in the following
+sections.
+In this framework, data mining is defined [De 11a] as Òa process of information ex-
+change between the user and the dataÓ. The goal of data mining is provide the user
+with a good understanding of the data, or in other words, to reduce his uncertainty
+35
+Chapter 4. Our approach 36
+about the data. Although there have been numerous approaches with a similar goal,
+the main difference of this framework is that it uses the subjective nature of interest-
+ingness. It doesnÕt try to objectively define what is interesting, but instead, it takes
+into account userÕs beliefs and tries to quantify interestingness with respect to the
+user. The more interesting a pattern thatÕs revealed to the user is, the more it will
+reduce her uncertainty about the data. To do so, the framework proposes a way to
+quantify the concepts of ÒinterestingnessÕ Õ and ÒuncertaintyÓ.
+Specifically, userÕs prior beliefs about the data X ? Rd?n are modelled as a distribution
+P which we will refer to as the background distribution. However the user is unable to
+formalise her beliefs into the distribution P directly. For that reason, userÕs beliefs are
+formalised as constraints that this distribution must satisfy. In this way, the domain
+of possible distributions is restricted to a set of distributions, those who satisfy these
+constraints. ItÕs easy to see that the size of this set of possible distributions is inverse
+proportional to userÕs prior beliefs.
+In our case, these constraints will be that certain statistics fi (e.g. cumulants) are
+already known:
+º
+X?Rd?n
+fi(X)P (X) = ci,?i ? N, ci ? R
+To choose the specific distribution, that will best express userÕs beliefs, from the set P
+of possible distributions, itÕs plausible to choose the most unbiased one, the maximum
+entropy (denoted as MaxEnt) distribution
+P = arg max
+P?P
+?EX?P{log(P (X))}
+since any other distribution from P will have a lower entropy than P from the MaxEnt
+distribution, which means that more knowledge is possible be added that will lead to
+further reduce of uncertainty.
+Chapter 4. Our approach 37
+Before we proceed with the formalisation used to quantify the ÒinterestingnessÓ of a
+pattern, we first need to define what a pattern is. In the context of this framework,
+we regard patterns as constraints. A constraint X ? X ? restricts the set of possible
+values for the data into a subset of the data space X ? ? X ? Rd?n and consequently
+reduces the userÕs uncertainty about the data. Providing a pattern to the user, the
+background distribution P will be updated to a new distribution P ?.
+The framework defines a measure of ÒinterestingnessÓ for a pattern as the negative log
+probability that the pattern exists in the data i.e. ? log(P (X ? X ). In english, that
+means that the smaller the probability of a pattern existing in the data is, the more
+interesting this pattern is.
+In the following sections we will explain how we applied the concepts of this framework
+in alternative clustering.
+4.2 Prior beliefs
+In our approach we express userÕs prior beliefs as constraints on the first and second
+order cumulants of the data points. This means that the user has some knowledge
+about the means and the variance of certain data points. It has to be noted that this
+can either be a right or wrong belief about the data or some calculated values based
+on the data.
+From the family of all distributions that satisfy these constraints P we choose the most
+unbiased one which, according to the principle of maximum entropy, is the maximum
+entropy distribution. This is a multivariate Gaussian distribution with the specified
+means vector and covariance matrix.
+Chapter 4. Our approach 38
+P (X) =
+n¸
+i=1
+1Ã
+2pik|?|  exp [?
+1
+2
+(xi ? µ)???1(xi ? µ)]
+=
+1Ã
+2pikn|?|  exp
+(? 1
+2
+ trace[(X? eµ?)??1(X? eµ?)?])
+4.3 The clustering pattern
+According to the data mining framework [Bie00], that our approach is based, patterns
+are properties of the data. Thus, their presence reduces the uncertainty of the user
+about the data by restricting the domain of possible values the data may have.
+For the scope of this dissertation we choose a specific type of clustering pattern,
+containing k clusters, as a constraint of the form X?E = M, where X ? Rd?n are the
+data points, E ? {0, 1}n?k is an indicator matrix, that contains cluster indicators as
+columns, and M ? Rd?k which contains the means vectors µi as columns.
+X? 
+???????
+1 0    0
+0 0    1
+...
+... . . .
+...
+1 0    0
+??????? =
+[
+µ1, µ2,    , µk
+]
+We will use the term ÒpatternÓ for the clustering pattern unless otherwise stated.
+4.4 Self information of a clustering pattern
+As we stated earlier, according to the data mining framework [Bie00], we define the
+self-information of a pattern as the negative log probability of the pattern exists in
+Chapter 4. Our approach 39
+the data. We present a theorem that helps us quantify the self-information of our
+clustering pattern (the proof can be found in [De 11b]):
+Theorem 1. Let the columns of the matrix E be the indicator vectors of a set of k
+clusters I = Ii, i = 1,    , k, and PE = E(E?E)?1E?, the projection matrix onto the
+column space of E. Then, the probability of the pattern X?E = M is given by:
+P (X?E = M) =
+1Ã
+(2pi)kd|?k exp
+(? 1
+2
+trace[Pe  (X? eµ?)??1(X? eµ?)?]
+)
+Thus, the self-information of a pattern defined by the columns of E, which is its
+negative log probability and denoted as SelfInformationI , is equal to:
+SelfInformationI =
+k
+2
+log
+(
+(2pi)d|?|)+ 1
+2
+QI
+where
+QI = trace[Pe  (X? eµ?)??1(X? eµ?)?]
+Since, the self-information depends on I only through QI , we use QI as the quality
+metric for a pattern.
+Based on this theorem, we can quantify the self-information of a pattern. However,
+searching for the most informative pattern over the set of all possible patterns, i.e.
+the pattern that maximises our quality metric, is an NP-hard optimisation problem.
+Nonetheless, from an algorithmic viewpoint, this problem can be reduced in a weighted
+set coverage problem [De 11a] and thus, although it canÕt be solved directly, a proven
+good approximation can be achieved using an iterative greedy search algorithm [CLRS01],
+i.e. an iterative data mining approach.
+Chapter 4. Our approach 40
+4.5 The iterative data mining approach
+Figure 4.1: A graphic representation of our approach.
+User's beliefs as 
+background 
+distribution
+Updated 
+background 
+distribution
+condition background 
+distribution 
+clustering
+the data
+Pattern
+clustering the data
+In order to approximately solve the optimisation problem, we built an iterative search
+technique based on spectral clustering.
+More specifically, in each iteration, we are searching for the most informative pattern
+(clustering) based on our quality metric. However, after the first iteration, where the
+first clustering is found, we need to find the second most informative pattern keeping
+the previous patterns as they are. In other words, in each iteration we are searching
+for the most informative pattern given the previously found patterns which in fact is
+a sequential alternative clustering method using side information.
+Let QE = I?Pe be the projection matrix on the kernel of E, then based on the
+definition of the projection matrix and the matrix inversion lemma [Woo50], each
+iteration reduces to the maximisation of the following increase of the quality matrix:
+ÆQI =
+QE  (X? eµ?)???1(X? eµ?)? QE
+QE
+(4.5.1)
+Thus, the objective we need to optimise is a Rayleigh quotient. Relaxing the re-
+quirement that the matrix E contains only binary values to real values, we re-
+duce the problem of optimising this Rayleigh quotient into an eigenvalue problem.
+This means, that (4.5.1) is maximised by the dominant eigenvector of the matrix
+QE  (X? eµ?)???1(X? eµ?)? QE.
+Chapter 4. Our approach 41
+The technique presented in [De 11b] uses an exhaustive to threshold the real values
+into binary values. However, in our case, this is impossible since we are using the
+matrix E instead of just a vector and performing an exhaustive search for even small
+data sets is computationally unfeasible.
+For this reason, in each iteration, we will use as a base of our searching algorithm on
+a well known spectral clustering algorithm, presented in [NJW01]. For simplicity, we
+use prior beliefs of means equal to zero and covariance matrix equal to the identity
+matrix i.e. ? = I. The user is able to change these assumptions based on her prior
+beliefs.
+We first present the spectral algorithm that we use in each iteration of our alterna-
+tive clustering setting. The difference from the original algorithm presented by Ng,
+Jordan & Weiss [NJW01] is in the similarity matrix we are using. Instead of using
+an affinity matrix and calculating the Laplacian matrix, we use directly our quality
+metric matrix as the affinity matrix.
+Algorithm 3 Spectral clustering
+Given a quality metric matrix C, cluster data X = {x1,    , xn}, xi ? Rd into k
+clusters.
+1. Find the k dominant eigenvectors of C and form the matrix K = [x1x2    xk]
+which contains the k dominant eigenvectors as columns.
+2. Form the matrix U by normalising the rows of K to have unit length (i.e.
+Uij = Kij/(
+·
+jK
+2
+ij)
+1
+2 )
+3. Cluster the rows of U in k clusters using K-means algorithm
+4. Assign each point xi to cluster j if and only if row i of the matrix U was assigned
+to cluster j
+We present the algorithm of our approach. Please note that in the first iteration,
+QE = I by the definition of QE which means that the matrix we need to optimise is
+XX?.
+Chapter 4. Our approach 42
+Algorithm 4 Alternative clustering
+Given the data set X ? Rd?n, present alternative clusterings (until user is satisfied),
+each of which contains k clusters
+1. Calculate the quality metric matrix C = XX?
+2. Perform spectral clustering (Algorithm 3)
+3. Construct the indicator matrix E
+loop
+Calculate the quality metric matrix C = QE XX? QE
+Perform spectral clustering (Algorithm 3)
+Stack the new indicator matrix E to the previous matrix E
+end loop
+4.5.1 Kernel based version
+Under the assumption (that we also did for the scope of this dissertation) that the
+covariance matrix of the multivariate Gaussian distribution equals the identity matrix
+i.e. ? = I, the quality metric QI depends on the data set X only through the inner
+product XX?. This allows us to derive a kernel version of our approach just by
+replacing this inner product with a suitable kernel matrix. In fact, we used the radian
+basis function (RBF) as kernel in order to enable our method to obtain non-linearly
+shaped clusters.
+Chapter 5
+Validation and results
+ÒComputers are useless. They can only give you answers."
+Pablo Picasso
+5.1 Validation
+In order to validate that our quality metric holds, we produce some synthetic data,
+knowing the correct clustering (ground truth). We calculate the value of our quality
+metric for the correct clustering and we compare it against the value of the quality
+metric of the first clustering produced (the one with the biggest quality metric) by
+our method. We perform this experiment 1,000 times and we take the average to
+exclude any results by chance.
+The synthetic dataset we produced contains 200 data points in 4 different clusters,
+sampled from 4 Gaussian distributions (one for each cluster) having identity covari-
+ance matrix and different means.
+43
+Chapter 5. Results and evaluation 44
+?8 ?6 ?4 ?2 0 2 4 6?8
+?6
+?4
+?2
+0
+2
+4
+6
+8
+Correct Clustering :5495.9686
+(a) One correct clustering
+?8 ?6 ?4 ?2 0 2 4 6?8
+?6
+?4
+?2
+0
+2
+4
+6
+8
+First clustering : 5183.1579
+(b) The first clustering produced by our method cor-
+responding to the correct clustering above
+The results over 1,000 repetitions (Figure 5.1) in:
+¥ Quality metric of the correct correct clustering: 5.4404? 103
+¥ Quality metric of the first produced clustering: 5.1228? 103
+¥ Quality metric of a random produced clustering: 212.5209
+Thus, we can conclude that our quality metric makes sense. For a discovered cluster-
+ing, the quality metric is close to the value of the correct clustering. This is emphasised
+when it is compared to the value of the quality metric for a random clustering.
+We did expect the value for the quality metric for the discovered clustering to be
+slightly lower than the value for the correct clustering since we use an approximate
+and not an exact method.
+Chapter 5. Results and evaluation 45
+0 1000 2000 3000 4000 5000 60000
+50
+100
+150
+200
+250
+300
+350
+Figure 5.1: Results of 1,000 repetitions. On axis x is shown the quality metric
+and on axis y the frequency. Bars in red represent the value of the quality metric
+for the random clustering, in green for the correct clustering and in blue for the first
+clustering found by our approach.
+5.2 Synthetic data with 4 clusters
+We create a synthetic dataset of 200 data points, containing 4 clusters, each of which
+is sampled from a Gaussian distribution with different means and identity covariance
+matrix. We choose to cluster the data into two clusters since that way, alternative
+clusterings will more meaningful.
+We perform two experiments. In the first, we are using the inner product XX? as
+Chapter 5. Results and evaluation 46
+described by our quality metric, whilst in the second, we replace it with an RBF
+kernel with kernel width of 3. In the figures, above the clustering, we present the
+value of the quality metric for the corresponding clustering.
+5.2.1 Using inner product
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+First clustering : 3040.8843
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 2 : 2312.2695
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 3 : 265.5723
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 4 : 200.9862
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 5 : 157.3226
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 6 : 218.127
+Figure 5.2: Using quality metric with inner product XXÕ
+We see that the first two clusterings produced are of high quality and how the quality
+metric decreases for the next clusterings which are of lower quality.
+Chapter 5. Results and evaluation 47
+5.2.2 Using RBF kernel
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+First clustering : 2904.1097
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 2 : 335.8508
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 3 : 2246.9601
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 4 : 149.9699
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 5 : 127.4548
+?10 ?5 0 5 10?10
+?5
+0
+5
+10
+Alternative Clustering 6 : 128.842
+Figure 5.3: Using quality metric replacing the inner product XXÕ with an RBF
+kernel of width 3
+Similarly to the previous experiment, the method finds two high quality alternative
+clusterings.
+Chapter 5. Results and evaluation 48
+5.3 Synthetic data with 3 clusters
+We create a synthetic dataset of 200 data points, containing 3 clusters, each of which
+is sampled from a Gaussian distribution with different means and identity covariance
+matrix. We choose to cluster the data into two clusters since that way, alternative
+clustering will more meaningful.
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+First clustering : 94.3074
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+Alternative Clustering 2 : 71.413
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+Alternative Clustering 3 : 16.8691
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+Alternative Clustering 4 : 20.5438
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+Alternative Clustering 5 : 9.0855
+?2 ?1 0 1 2?2
+?1
+0
+1
+2
+Alternative Clustering 6 : 1.7142
+Figure 5.4: Using RBF kernel in a 3 clusters dataset
+In this experiment, the RBF kernel is used in order to get non linear clusterings. As
+previously, two high quality views of the data can be found before the quality metric
+drops to a much lower level.
+Chapter 6
+Conclusion and future directions
+ÒAnd if you find her poor, Ithaca has not deceived you.
+Wise as you have become, with so much experience,
+you must already have understood what Ithacas mean.Ó
+Constantine P. Cavafy
+6.1 Conclusion
+The first aim of this project was to provide an overview of the most important al-
+ternative clustering approaches. We concluded to a categorisation of these methods
+to three main categories: semi-supervised, data-transformation oriented and unsuper-
+vised. We discussed the main points of each method trying to touch on what each
+methods does differently. Ideally, we could have co,pared all the methods by using a
+single data set and provide the results. This was not done for two main reasons. First,
+developing all these methods from scratch was out of the time interval given for this
+dissertation and secondly and most importantly, we believe that this would not be
+49
+Chapter 6. Conclusion and future directions 50
+the most objective way to compare them since each method has different performance
+for different kind of dataset (e.g. sparse data, high-dimensional data etc).
+The second aim of this project was to define a new approach, extending a previous
+method in a certain framework[De 11a]. Our approach differs from that presented in
+[De 11b], in two major points. Firstly, we used a different pattern syntax, we defined a
+clustering pattern and secondly we presented a new approximation search algorithm
+based on spectral clustering. We defined our approach theoretically, explaining its
+different aspects and crucial points. Also, we conducted experiments on synthetic
+data, arguing about the validation of the quality criterion that characterised our
+whole approach, and we succeeded in finding at least one alternative clustering of
+high quality on our experiments.
+6.2 Future directions
+Alternative clustering is a new field, that is now starting to get attention in the
+literature. That means that many more alternative clustering techniques will be
+produced and soon this survey will be outdated. Furthermore, it would be of great
+interest to define an objective way to compare these methods in an as objective as
+possible way.
+The method we proposed in this dissertation is an approximate method. That means,
+they is subject to improvements. This may achieved using tighter relaxations (e.g.
+Semi Definite Programming (SDP), 0-1 SDP etc). Another extension would be the
+use of other forms of prior beliefs, not just constraints a probability distribution
+must satisfy. As a consequence, the syntax of the pattern used, could be altered.
+A third extension, initially as described in [De 11b]; a cost, i.e. description length,
+of a clustering pattern could also be taken into account, while we could explore the
+use of different costs that could be appropriate for different patterns. Finally, more
+Chapter 6. Conclusion and future directions 51
+experiments, ideally using real world data could be performed to extract more useful
+insight of the method as well as have some real world results.
+Appendix A
+Mathematical preliminaries
+A.1 Information theoretic concepts
+Multivariate Gaussian distribution
+Themultivariate Gaussian distribution is a generalisation of the Gaussian distribution
+for more than one variables. A random vector X = [X1, X2,    , Xn]? is said to have
+multivariate Gaussian distribution (X v N (µ,?)) with mean µ ? Rn and covariance
+matrix ? ? Sn++ 1 if its probability density function (pdf) is given by
+p(x;µ,?) =
+1Ã
+(2pi)n|?| exp
+(
+? 1
+2
+(x? µ)???1(x? µ)
+)
+Vital concept towards the understanding of the multivariate Gaussian distribution,
+is that of the covariance matrix. The covariance matrix ? of a random vector X
+contains in its ith and jth position the covariance between the ith and jth random
+variable.
+1Sn++ = {A ? Rn?n : A = A? and x?Ax > 0?x ? Rn such that x 6= 0 }
+52
+Appendix A. Mathematical preliminaries 53
+? = Cov(Xi, Xj) = E[(Xi ? E(Xi))  (Xj ? E(Xj))] = E[XiXj]? E[Xi]E[Xj]
+Entropy and conditional entropy
+In information theory, entropy is a measure of uncertainty of a random variable. More
+formally, let X be a discrete random variable (or a continuous random variable use the
+integral instead of the sum) with probability mass function p(x) = P (X = x), x ? X.
+The entropy H(X) is defined as
+H(X) = ?
+·
+x?X
+p(x) log p(x) = Ep{? log(p(X))}
+we can also denote the entropy H(X) as H(p).
+The remaining uncertainty of a random variable Y when X is given, where (X, Y ) ?
+p(x, y), is the conditional entropy :
+H(Y |X) = ?
+·
+x?X
+·
+x?Y
+p(x, y) log p(y|x) = ?E{log(p(Y |X))}
+Maximum entropy distribution
+The maximum entropy distribution (MaxEnt) is the distribution which has entropy
+at least as great as all the other members amongst a specified family of distributions.
+We are looking the probability density p that maximises the entropy H(p).
+As described in [Bie10], we can formalise this process as an optimisation problem:
+Appendix A. Mathematical preliminaries 54
+max
+p(x)
+?
+·
+x?X
+p(x) log p(x)
+s.t. ?
+·
+x?X
+fi(x) = ai, ?i
+?
+·
+x?X
+p(x) = 1
+Kullback-Leibler divergence
+The measure of distance between two distributions with probability mass functions
+p(x) and q(x), known as Kullback-Leibler divergence is defined as:
+KL(p||q) =
+·
+x?X
+p(x) log
+p(x)
+q(x)
+= Ep{log(p(x))? log(q(x))}
+Mutual information
+The mutual information between two random variables X, Y with a joint probability
+distribution p(x, y) and marginal probability mass functions p(x), p(y) is the Kullback-
+Leibler distance between the joint distribution and the product distrubution p(x)p(x)
+I(X;Y ) = KL
+(
+p(x, y)||p(x)p(y)) = ·
+x?X
+·
+y?Y
+p(x, y) log
+p(x, y)
+p(x)p(y)
+Maximum likelihood estimation
+Maximum likelihood estimation (MSE) is a technique used to estimate the parameters
+of a statistical model. The goal is to find ? that maximises the log-likelihood function
+(also referred to as the cross-entropy):
+Appendix A. Mathematical preliminaries 55
+L(?;X) =
+n·
+i=1
+log p(xi|?)
+where X ? Rd?n the iid 2 observations from the distribution p(x|?).
+EM algorithm
+The EM algorithm is a technique for iteratively computing the MSE when data X
+is incomplete and there exists another dataset Y corresponding to the missing (and
+unknown) data. The technique has two steps, the E-step (expectation step) and the
+M-step (maximisation step) and tries to maximise the likelihood of the combined (X
+and Y ) data.
+Specifically, the E-step:
+Q(?|?t) = E[log p(X, Y |X,?t
+where the algorithm determines the expectation of the log-likelihood based on the
+current parameter ?t and the M-step:
+?t+1 = arg max
+?
+Q(?|?t)
+where the algorithm finds a new parameter ?t+1 that maximises this quantity.
+2Independent and identically distributed
+Appendix A. Mathematical preliminaries 56
+A.2 Linear algebra concepts
+Rayleigh quotient
+Definition 2. The Rayleigh quotient to the Hermitian matrix A is defined [HJ94] as
+RA(x) =
+x?Ax
+x?x
+where x? is the Hermitian conjugate of x.
+The importance of this quantity lies in the fact that since A is a Hermitian matrix,
+it has real eigenvalues and for a given matrix A the Rayleigh quotient is maximised
+by the dominant eigenvector.
+Matrix inversion lemma
+The matrix inversion lemma (also known as Woodbury matrix identity) is
+(A+ UCV )?1 = A?1 ? A?1U(C?1 + V A?1U?1)V A?1
+for matrices A, U, C and V of the correct size. A proof can be found in [BV04].
+Appendix B
+Parts of the source code
+Here we present some parts of the Matlab code used for the experiments. The
+RBF kernel code is written by Tijl De Bie and can be found in http://www.kernel-
+methods.net/matlab/kernels/rbf.m.
+57
+Appendix B. Source code 58
+B
+.1
+M
+at
+la
+b
+co
+de
+fo
+r
+sy
+nt
+he
+ti
+c
+da
+ta
+ge
+ne
+ra
+ti
+on
+1
+fu
+nc
+ti
+on
+[d
+at
+a]
+=
+Ge
+ne
+ra
+te
+Da
+ta
+(s
+el
+ec
+t,
+n)
+2 3
+if
+se
+le
+ct
+==
+1
+4
+K=
+n;
+5
+da
+ta
+=[
+ra
+nd
+n(
+n/
+4,
+1)
++8
+ra
+nd
+n(
+n/
+4,
+1)
++1
+2
+;
+6
+ra
+nd
+n(
+n/
+4,
+1)
++3
+ra
+nd
+n(
+n/
+4,
+1)
+-4
+;
+7
+ra
+nd
+n(
+n/
+4,
+1)
+-1
+5
+ra
+nd
+n(
+n/
+4,
+1)
++1
+1
+;
+8
+ra
+nd
+n(
+n/
+4,
+1)
+-1
+0
+ra
+nd
+n(
+n/
+4,
+1)
+-1
+0
+];
+9 10
+el
+se
+if
+se
+le
+ct
+==
+2
+11
+da
+ta
+=z
+er
+os
+(n
+,2
+);
+12
+r=
+li
+ns
+pa
+ce
+(0
+,1
+,n
+/5
+);
+13
+da
+ta
+(1
+:n
+/5
+,1
+)=
+co
+s(
+r*
+2*
+pi
+)*
+0.
+2;
+14
+da
+ta
+(1
+:n
+/5
+,2
+)=
+si
+n(
+r*
+2*
+pi
+)*
+0.
+2;
+15
+r=
+li
+ns
+pa
+ce
+(0
+,1
+,2
+*n
+/5
+);
+16
+da
+ta
+(n
+/5
++1
+:3
+*n
+/5
+,1
+)=
+co
+s(
+r*
+pi
+*0
+.7
+5)
+*1
+;
+17
+da
+ta
+(n
+/5
++1
+:3
+*n
+/5
+,2
+)=
+si
+n(
+r*
+pi
+*0
+.7
+5)
+*1
+;
+18
+r=
+li
+ns
+pa
+ce
+(0
+,1
+,2
+*n
+/5
+);
+19
+da
+ta
+(3
+*n
+/5
++1
+:n
+,1
+)=
+co
+s(
+pi
++r
+*p
+i*
+0.
+75
+)*
+1;
+20
+da
+ta
+(3
+*n
+/5
++1
+:n
+,2
+)=
+si
+n(
+pi
++r
+*p
+i*
+0.
+75
+)*
+1;
+21
+da
+ta
+=d
+at
+a+
+ra
+nd
+n(
+n,
+2)
+*0
+.1
+;
+22
+el
+se
+if
+se
+le
+ct
+==
+3
+23
+da
+ta
+=[
+ra
+nd
+n(
+n/
+4,
+1)
++4
+ra
+nd
+n(
+n/
+4,
+1)
++4
+;
+24
+ra
+nd
+n(
+n/
+4,
+1)
++3
+ra
+nd
+n(
+n/
+4,
+1)
+-4
+;
+25
+ra
+nd
+n(
+n/
+4,
+1)
+-5
+ra
+nd
+n(
+n/
+4,
+1)
++1
+;
+26
+ra
+nd
+n(
+n/
+4,
+1)
+-3
+ra
+nd
+n(
+n/
+4,
+1)
+-4
+];
+27 28 29
+en
+d
+Appendix B. Source code 59
+B
+.2
+M
+at
+la
+b
+co
+de
+fo
+r
+an
+ex
+p
+er
+im
+en
+t
+1
+cl
+ea
+r
+al
+l;
+2
+cl
+os
+e
+al
+l;
+3 4
+n=
+20
+0;
+5
+da
+ta
+=
+Ge
+ne
+ra
+te
+Da
+ta
+(2
+,n
+);
+6 7
+%C
+=d
+at
+a*
+da
+ta
+Õ;
+8
+C=
+rb
+f(
+da
+ta
+,0
+.2
+);
+9 10
+%
+Nu
+mb
+er
+of
+cl
+us
+te
+rs
+11
+k=
+2;
+12 13
+%%
+Ca
+lc
+ul
+at
+e
+qu
+al
+it
+y
+fo
+r
+th
+e
+14
+%c
+or
+re
+ct
+cl
+us
+te
+ri
+ng
+15
+%(
+on
+ly
+fo
+r
+4
+cl
+us
+te
+rs
+da
+ta
+)
+16 17
+%
+Nu
+mb
+er
+of
+cl
+us
+te
+rs
+(i
+n
+co
+rr
+ec
+t)
+18
+kk
+=
+4;
+19
+20
+Ec
+or
+=
+ze
+ro
+s(
+n,
+kk
+);
+21 22
+Te
+st
+=
+[o
+ne
+s(
+n/
+4,
+1)
+;
+on
+es
+(n
+/4
+,1
+)*
+2;
+23
+on
+es
+(n
+/4
+,1
+)*
+3;
+on
+es
+(n
+/4
+,1
+)*
+4]
+;
+24 25
+fo
+r
+j=
+1:
+kk
+26
+fo
+r
+i=
+1:
+n
+27
+if
+Te
+st
+(i
+,1
+)
+==
+j
+28
+Ec
+or
+(i
+,j
+)
+=
+1;
+29
+en
+d
+30
+en
+d
+31
+en
+d
+32 33
+Qc
+or
+=
+tr
+ac
+e(
+Ec
+or
+*p
+in
+v(
+Ec
+or
+)*
+(d
+at
+a*
+da
+ta
+Õ)
+);
+34 35
+%f
+ig
+ur
+e,
+sc
+at
+te
+r(
+da
+ta
+(:
+,1
+),
+da
+ta
+(:
+,2
+),
+Õo
+Õ)
+36 37
+fi
+gu
+re
+,
+38
+ho
+ld
+on
+;
+39
+fo
+r
+i=
+1:
+n
+Appendix B. Source code 60
+40
+if
+Ec
+or
+(i
+,1
+)
+==
+1
+41
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+m+
+Õ)
+;
+42
+el
+se
+if
+Ec
+or
+(i
+,2
+)
+==
+1
+43
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+g+
+Õ)
+;
+44
+el
+se
+if
+Ec
+or
+(i
+,3
+)
+==
+1
+45
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+b+
+Õ)
+;
+46
+el
+se
+47
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+r+
+Õ)
+;
+48
+en
+d
+49
+en
+d
+50
+ho
+ld
+of
+f;
+51
+ti
+tl
+e(
+[Õ
+Co
+rr
+ec
+t
+Cl
+us
+te
+ri
+ng
+:Õ
+,
+nu
+m2
+st
+r(
+Qc
+or
+)]
+);
+52 53
+%%
+Fi
+rs
+t
+cl
+us
+te
+ri
+ng
+54 55
+%
+Fi
+nd
+th
+e
+k
+do
+mi
+na
+nt
+ei
+ge
+nv
+ec
+to
+rs
+56 57
+[v
+,d
+]
+=
+ei
+gs
+(C
+,k
+,Õ
+LM
+Õ)
+;
+58 59
+%
+Cr
+ea
+te
+no
+rm
+al
+is
+ed
+ma
+tr
+ix
+U
+us
+in
+g
+60
+%t
+he
+ei
+ge
+nv
+ec
+to
+rs
+fo
+un
+d
+61 62
+fo
+r
+i=
+1:
+si
+ze
+(v
+,1
+)
+63
+t
+=
+sq
+rt
+(s
+um
+(v
+(i
+,:
+).
+^2
+))
+;
+64
+U(
+i,
+:)
+=
+v(
+i,
+:)
+./
+t;
+65
+en
+d
+66 67
+%
+Pe
+rf
+or
+m
+k-
+me
+an
+s
+cl
+us
+te
+ri
+ng
+68 69
+[I
+Dd
+at
+a,
+Z]
+=
+km
+ea
+ns
+(U
+,k
+);
+70 71
+%
+Co
+ns
+tr
+uc
+t
+ma
+tr
+ix
+E
+72 73
+E
+=
+ze
+ro
+s(
+n,
+k)
+;
+74 75 76
+fo
+r
+j=
+1:
+k
+77
+fo
+r
+i=
+1:
+n
+78
+if
+ID
+da
+ta
+(i
+,1
+)
+==
+j
+79
+E(
+i,
+j)
+=
+1;
+80
+en
+d
+81
+en
+d
+Appendix B. Source code 61
+82
+en
+d
+83 84
+Q
+=
+tr
+ac
+e(
+E*
+pi
+nv
+(E
+)*
+(d
+at
+a*
+da
+ta
+Õ)
+);
+85 86
+%
+An
+in
+de
+x
+(n
+ot
+bi
+na
+ry
+)
+fo
+r
+th
+e
+87
+%c
+lu
+st
+er
+in
+g
+88 89
+ID
+X
+=
+ID
+da
+ta
+;
+90 91
+%
+Pl
+ot
+92 93
+f=
+fi
+gu
+re
+;
+94
+su
+bp
+lo
+t(
+3,
+2,
+1)
+95
+ho
+ld
+on
+;
+96
+fo
+r
+i=
+1:
+n
+97
+if
+E(
+i,
+1)
+==
+1
+98
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+m+
+Õ)
+;
+99
+el
+se
+if
+E(
+i,
+2)
+==
+1
+10
+0
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+g+
+Õ)
+;
+10
+1
+el
+se
+if
+E(
+i,
+3)
+==
+1
+10
+2
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+b+
+Õ)
+;
+10
+3
+el
+se
+10
+4
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+r+
+Õ)
+;
+10
+5
+en
+d
+10
+6
+en
+d
+10
+7
+ho
+ld
+of
+f;
+10
+8
+ti
+tl
+e(
+[Õ
+Fi
+rs
+t
+cl
+us
+te
+ri
+ng
+:
+Õ,
+nu
+m2
+st
+r(
+Q)
+])
+;
+10
+9
+11
+0
+%%
+Su
+bs
+eq
+ue
+nt
+cl
+us
+te
+ri
+ng
+s
+11
+1
+fo
+r
+z
+=
+2:
+6;
+11
+2
+C
+=
+(e
+ye
+(n
+)-
+E*
+pi
+nv
+(E
+))
+*C
+*(
+ey
+e(
+n)
+-E
+*p
+in
+v(
+E)
+);
+11
+3
+11
+4
+%
+Fi
+nd
+th
+e
+k
+do
+mi
+na
+nt
+ei
+ge
+nv
+ec
+to
+rs
+11
+5
+11
+6
+[v
+,d
+]
+=
+ei
+gs
+(C
+,k
+,Õ
+LM
+Õ)
+;
+11
+7
+11
+8
+%
+Cr
+ea
+te
+no
+rm
+al
+is
+ed
+ma
+tr
+ix
+U
+us
+in
+g
+11
+9
+%t
+he
+ei
+ge
+nv
+ec
+to
+rs
+fo
+un
+d
+12
+0
+12
+1
+fo
+r
+i=
+1:
+si
+ze
+(v
+,1
+)
+12
+2
+t
+=
+sq
+rt
+(s
+um
+(v
+(i
+,:
+).
+^2
+))
+;
+12
+3
+U(
+i,
+:)
+=
+v(
+i,
+:)
+./
+t;
+Appendix B. Source code 62
+12
+4
+en
+d
+12
+5
+12
+6
+%
+Pe
+rf
+or
+m
+k-
+me
+an
+s
+cl
+us
+te
+ri
+ng
+12
+7
+12
+8
+[I
+Dd
+at
+a,
+Z]
+=
+km
+ea
+ns
+(U
+,k
+);
+12
+9
+13
+0
+%
+Ad
+d
+k
+ne
+w
+co
+lu
+mn
+s
+at
+E
+in
+ea
+ch
+it
+er
+at
+io
+n
+13
+1
+13
+2
+Ef
+oo
+=
+ze
+ro
+s(
+n,
+k)
+;
+13
+3
+13
+4
+fo
+r
+j=
+1:
+k
+13
+5
+fo
+r
+i=
+1:
+n
+13
+6
+if
+ID
+da
+ta
+(i
+,1
+)
+==
+j
+13
+7
+Ef
+oo
+(i
+,j
+)
+=
+1;
+13
+8
+en
+d
+13
+9
+en
+d
+14
+0
+en
+d
+14
+1
+14
+2
+E
+=
+[E
+Ef
+oo
+];
+14
+3
+14
+4
+Qf
+oo
+=
+tr
+ac
+e(
+Ef
+oo
+*p
+in
+v(
+Ef
+oo
+)*
+(d
+at
+a*
+da
+ta
+Õ)
+);
+14
+5
+14
+6
+Q
+=
+[Q
+Qf
+oo
+];
+14
+7
+14
+8
+ID
+X
+=
+[I
+DX
+ID
+da
+ta
+];
+14
+9
+15
+0
+%
+Pl
+ot
+15
+1
+15
+2
+fi
+gu
+re
+(f
+)
+15
+3
+su
+bp
+lo
+t(
+3,
+2,
+z)
+15
+4
+15
+5
+ho
+ld
+on
+;
+15
+6
+fo
+r
+i=
+1:
+n
+15
+7
+if
+Ef
+oo
+(i
+,1
+)
+==
+1
+15
+8
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+m+
+Õ)
+;
+15
+9
+el
+se
+if
+Ef
+oo
+(i
+,2
+)
+==
+1
+16
+0
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+g+
+Õ)
+;
+16
+1
+el
+se
+if
+Ef
+oo
+(i
+,3
+)
+==
+1
+16
+2
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+b+
+Õ)
+;
+16
+3
+el
+se
+16
+4
+pl
+ot
+(d
+at
+a(
+i,
+1)
+,d
+at
+a(
+i,
+2)
+,Õ
+r+
+Õ)
+;
+16
+5
+en
+d
+Appendix B. Source code 63
+16
+6
+en
+d
+16
+7
+ho
+ld
+of
+f;
+16
+8
+ti
+tl
+e(
+[Õ
+Al
+te
+rn
+at
+iv
+e
+Cl
+us
+te
+ri
+ng
+Õ,
+16
+9
+nu
+m2
+st
+r(
+z)
+,Õ
+:
+Õ,
+17
+0
+nu
+m2
+st
+r(
+Qf
+oo
+)]
+);
+17
+1
+17
+2
+en
+d
+Bibliography
+[BB06] Eric Bae and James Bailey. COALA: A Novel Approach for the Extrac-
+tion of an Alternate Clustering of High Quality and High Dissimilarity.
+Sixth International Conference on Data Mining (ICDMÕ06), pages 53Ð62,
+December 2006.
+[Bie00] Tijl D E Bie. An information theoretic framework for data mining. pages
+1Ð15, 2000.
+[Bie10] Tijl De Bie. Maximum entropy models and subjective interestingness :
+an application to tiles in binary databases. pages 1Ð43, 2010.
+[Bis95] C.M. Bishop. Neural networks for pattern recognition. Oxford university
+press, 1995.
+[Bs06] C.M. Bishop and SpringerLink (Online service). Pattern recognition and
+machine learning, volume 4. Springer New York, 2006.
+[BV04] S.P. Boyd and L. Vandenberghe. Convex optimization. Cambridge Univ
+Pr, 2004.
+[CFD07] Y. Cui, X.Z. Fern, and J.G. Dy. Non-redundant multi-view clustering
+via orthogonalization. In Data Mining, 2007. ICDM 2007. Seventh IEEE
+International Conference on, volume 3, pages 133Ð142. IEEE, 2007.
+[CLRS01] Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, and Clifford
+Stein. Introduction to Algorithms, Second Edition. 2001.
+64
+Bibliography 65
+[DB10a] X.H. Dang and James Bailey. Generation of alternative clusterings using
+the CAMI approach. In SIAM International Conference on Data Mining
+(SDM), pages 118Ð129, 2010.
+[DB10b] Xuan Hong Dang and James Bailey. A Hierarchical Information Theo-
+retic Technique for the Discovery of Non Linear Alternative Clusterings.
+Optimization, 2010.
+[De 11a] T. De Bie. An Information Theoretic Framework for Data Mining. Com-
+munications, 2011.
+[De 11b] T. De Bie. Subjectively interesting alternative clusters. Technical report,
+Technical report, University of Bristol TR-133090, 2011.
+[DLR77] A.P. Dempster, N.M. Laird, and D.B. Rubin. Maximum likelihood from
+incomplete data via the EM algorithm. Journal of the Royal Statistical
+Society. Series B (Methodological), 39(1):1Ð38, 1977.
+[DQ08] Ian Davidson and Zijie Qi. Finding Alternative Clusterings Using Con-
+straints. 2008 Eighth IEEE International Conference on Data Mining,
+pages 773Ð778, December 2008.
+[Dun73] J.C. Dunn. A fuzzy relative of the isodata process and its use in detecting
+compact well-separated clusters. Cybernetics and Systems, 3(3):32Ð57,
+1973.
+[FPSS+96] U. Fayyad, G. Piatetsky-Shapiro, P. Smyth, et al. Knowledge discovery
+and data mining: Towards a unifying framework. In Proc. 2nd Int. Conf.
+on Knowledge Discovery and Data Mining, Portland, OR, pages 82Ð88,
+1996.
+[GH03] David Gondek and Thomas Hofmann. Conditional information bottleneck
+clustering. In 3rd ieee international conference on data mining, workshop
+on clustering large data sets, number C, pages 36Ð42. Citeseer, 2003.
+Bibliography 66
+[GH04] D. Gondek and T. Hofmann. Non-redundant data clustering. Knowledge
+and Information Systems, 12(1):1Ð24, 2004.
+[GH05] David Gondek and Thomas Hofmann. Non-redundant clustering with
+conditional ensembles. Proceeding of the eleventh ACM SIGKDD inter-
+national conference on Knowledge discovery in data mining - KDD Õ05,
+1(c):70, 2005.
+[HJ94] R.A. Horn and C.R. Johnson. Topics in matrix analysis. Cambridge Univ
+Pr, 1994.
+[JD88] A.K. Jain and R.C. Dubes. Algorithms for clustering data. Prentice-Hall,
+Inc., 1988.
+[JMD08] Prateek Jain, Raghu Meka, and Inderjit S Dhillon. Simultaneous Unsu-
+pervised Learning of Disparate Clusterings. Analysis, (April), 2008.
+[JMF99] A.K. Jain, M.N. Murty, and P.J. Flynn. Data clustering: a review. ACM
+computing surveys (CSUR), 31(3):264Ð323, September 1999.
+[Kle03] Jon Kleinberg. An impossibility theorem for clustering. In Advances
+in Neural Information Processing Systems 15: Proceedings of the 2002
+Conference, page 463. The MIT Press, 2003.
+[NJW01] A. Ng, M. Jordan, and Y. Weiss. Spectral clustering: analysis and an
+algorithm. In Advances in Neural Information Processing Systems 14:
+Proceeding of the 2001 Conference, pages 849Ð856, 2001.
+[PM06] Anne Patrikainen and Marina Meila. Comparing subspace clusterings.
+IEEE Transactions on Knowledge and Data Engineering, 18(7):902Ð916,
+2006.
+Bibliography 67
+[QD09] ZiJie Qi and Ian Davidson. A principled and flexible framework for finding
+alternative clusterings. Proceedings of the 15th ACM SIGKDD interna-
+tional conference on Knowledge discovery and data mining - KDD Õ09,
+page 717, 2009.
+[TK08] S. Theodoridis and K. Koutroumbas. Pattern recognition. 2008.
+[TPB00] Naftali Tishby, Fernando C. Pereira, and William Bialek. The information
+bottleneck method. Neural Computation, pages 1Ð16, April 2000.
+[Voo86] E.M. Voorhees. Implementing agglomerative hierarchic clustering algo-
+rithms for use in document retrieval. Information Processing & Manage-
+ment, 22(6):465Ð476, 1986.
+[Woo50] M.A. Woodbury. Inverting modified matrices. Memorandum report,
+42:106, 1950.
+[XNJR03] E.P. Xing, A.Y. Ng, M.I. Jordan, and S. Russell. Distance metric learning
+with application to clustering with side-information. Advances in neural
+information processing systems, pages 521Ð528, 2003.
+[XW05] Rui Xu and Donald Wunsch. Survey of clustering algorithms. IEEE trans-
+actions on neural networks / a publication of the IEEE Neural Networks
+Council, 16(3):645Ð78, May 2005.

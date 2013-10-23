@@ -1,0 +1,3318 @@
+Abstract
+
+Thisprojectconstructsaframeworkthatautomaticallyreproduces3Dflighttrajectoriesfrom
+multiple bat call positions. For reconstructing 3D trajectories from 4D points, segments
+consistentwithabiologicalmodelarecombined together,with largersegmentsconsistent
+withthebiologicalmodelselectedtobethesubsetofallpossibletrajectories.Ineachsubset,
+thetrajectorywiththelongestlengthorthehighestlikelihoodisselectedandoutput.
+
+Thisprojectcomprisedthreestages.Firstly,biologicalflightpriorsofthebatNyctalusleisleri
+are constructed by filtering out outliers from statistical measurement models. These
+constructedmodels of previous flights are integrated with amodel based filter using a
+maximumlikelihoodmethodthatpre?selectsthosetrajectorieswithhigherprobability.
+
+Next a trajectory's segment subset selection algorithm is generated. Average linkage
+agglomerativeclusteringisutilizedbothatthebeginningandattheendofthisalgorithm.In
+each clustering, bifurcation checks help to measure the distance between each flight
+trajectory, and average linkage is utilized to calculate the similarity between the clusters.
+Additionally, an automatic minimum threshold selection method, used for dividing the
+dendrogram, isproposedhere.After the first clustering, abranch?and?bound algorithm is
+implementedtohelptoextendthebranchesofeachtemplatetrajectory'ssegmentsubset.
+Itsassociatedboundaryandpruningrulereferencestheresultsofthemaximum likelihood
+methodoncenormalizedandcomparedwithitsneighbours.
+
+Speed optimization is considered. Twomethodologies are proposed to solve the crucial
+problemofalargeoperationtime.Aselectionmethodusingadaptiveinterpolationpointsis
+proposed to achieve both a high speed and a high resolution interpolation calculation in
+curvaturemeasurement; additionally, an importance samplingmethod is implemented by
+lookingata3pointsegmentstabletoachievethemostefficientbranching.
+
+Finally, three assessmentmethods are proposed here to obtain an objective and reliable
+evaluation:reconstructionrateforbattrajectories;recognitionrateforbatcallpositions;and
+theaverageunbiaseddistancedeviationofeachtrajectory.
+
+This researchprovidesboth a feasiblemethodof recognizing bat flight trajectories and a
+repeatablewayofdataanalysisindependentofsubjectivemanualobservation.
+i
+TableofContents
+1.Introduction ............................................................................................1
+2.Background .............................................................................................4
+2.1TargetDomain:BatFlight.................................................................................4
+2.1.1Echolocation..........................................................................................4
+2.1.2BatGroups ............................................................................................6
+2.1.3BatTrajectory ........................................................................................8
+2.1.4BatTrajectoryModelling.......................................................................9
+2.2PatternClassification......................................................................................11
+2.2.1Real?timeTrackingandOfflineTrajectoryReconstruction .................11
+2.2.2TrajectoryReconstructionusingMachineLearning............................11
+2.3SmoothingandInterpolation.........................................................................15
+2.3.1LinearInterpolation ............................................................................15
+2.3.2CubicsplineInterpolation...................................................................16
+2.3.3B?splineInterpolation .........................................................................17
+3.Methods................................................................................................19
+3.1Inputdataanalysisandpre?processing .........................................................19
+3.2Interpolation ..................................................................................................23
+3.3PriorFlightModel ..........................................................................................26
+3.4Trajectory'sSegmentSubsetSelectionAlgorithm .........................................32
+3.4.13PointSegmentSelectionAlgorithm .................................................33
+3.4.2Branch?and?boundAlgorithm .............................................................34
+3.5Clustering .......................................................................................................37
+3.5.1AverageLinkageAgglomerativeClustering.........................................39
+3.5.2AutomaticMinimumThresholdSelection ..........................................40
+3.6AssessmentandPreliminaryresults ..............................................................43
+3.6.1AssessmentMethod ...........................................................................43
+3.6.2PreliminaryResults..............................................................................45
+4.Optimization .........................................................................................48
+4.1AdaptiveInterpolationPointsSelection ........................................................48
+4.2ImportanceSampling .....................................................................................52
+4.3Extensionstothebasicframework................................................................54
+ii
+5.Results...................................................................................................58
+6.ConclusionandDiscussion ....................................................................65
+Bibliography ..............................................................................................66
+
+
+iii
+ListofFigures
+Figure1.Systemoverview .............................................................................................2 
+Figure2.Thechangeofpulserepetitionrateinabat'sforagingsequence..................5 
+Figure3.Exampleofflighttrajectorymonitoringfromtwomicrophonearrays ..........7 
+Figure4.IMMtrackingfilterforsegmentation ...........................................................12 
+Figure 5. Trajectory segmentation and interpolationwhere the vertical coordinate
+andhorizontalplanerepresentframeindexandimageplanerespectively .......14 
+Figure6.Twopiecewisecubicsplinesegmentcurve ..................................................16 
+Figure7.MultisensorarraysinClifton........................................................................19 
+Figure8.Pre?processingblock .....................................................................................20 
+Figure9.Placementofmultisensorarraysintopview...............................................20 
+Figure10.Placementofmultisensorarraysinsideview ...........................................20 
+Figure11.Multisensorarraysandsphericalpolarcoordinate ...................................21 
+Figure12.Linearinterpolation ....................................................................................24 
+Figure13.Higherorderpolynomialinterpolation.......................................................24 
+Figure14.Theimplementationofcubicsplineinterpolationin3Dspace..................25 
+Figure15.Radiusofcurvature .....................................................................................27 
+Figure16.Gaussianmodel...........................................................................................28 
+Figure17.Normalizedaccumulateddistributionsandpriorbatflightmodels.(a)?(b)
+max. and min. flight speeds; (c)?(e) average flight speeds; (f) max. flight
+curvature;(g)?(h)max.andmin.click?to?clickdistances;(i)?(j)max.andmin.click
+frequencies...........................................................................................................30 
+Figure 18. Comparison of accumulated distribution, prior bat flight models and
+literaturebehaviourmodelsonfeaturesofmax.andmin.flightspeedsandmax.
+curvature..............................................................................................................30 
+Figure19.Clusteredresultofbatflightfeatureindicators..........................................31 
+Figure20.Systemviewoftrajectory'ssegmentsubsetselectionalgorithm ..............32 
+Figure21.3pointsegmentselectionalgorithm..........................................................33 
+Figure22.Branch?and?boundalgorithm .....................................................................34 
+Figure23.Branch?and?boundexample .......................................................................36 
+Figure24.Bifurcationpointsandtrajectoryclusters...................................................38 
+Figure25.Clusteringalgorithm....................................................................................39 
+iv
+Figure26.Dendrogramofagglomerativeclustering(Case:01L471) ..........................40 
+Figure27.Majorstepsinagglomerativeclustering.....................................................40 
+Figure28.Hierarchicalclusteringandminimumthresholdselectionmethod ...........41 
+Figure29.Resultoftheminimumthresholdselectionmethod(Case:01L471) .........42 
+Figure 30. Dendrogram of agglomerative clustering with threshold 0.947 (Case:
+01L471) ................................................................................................................42 
+Figure31.Unbiasedaveragedeviation........................................................................43 
+Figure32.Assessmentmethods ..................................................................................44 
+Figure33.(a)RtrajandRclicktonumberofpointsfromone?trajectoryfiles;(b)Rtrajand
+Rclicktonumberofpointsfrommultiple?trajectoriesfiles ...................................45 
+Figure34.TrajectoryreconstructionfromFLGfile30L382 .........................................45 
+Figure35.TrajectoryreconstructionfromFLGfile30L394 .........................................46 
+Figure36.(a)davg_devtothenumberofpointsfromone?trajectoryfiles;(b)davg_devto
+thenumberofpointsfrommultiple?trajectoriesfiles.........................................46 
+Figure37.TrajectoryreconstructionfromFLGfile01L453 .........................................47 
+Figure38.TrajectoryreconstructionfromFLGfile01M071 .......................................47 
+Figure39.(a)Computationaltimetonumberofpointsfromone?trajectoryfiles;(b)
+computationaltimetonumberofpointsfrommultiple?trajectoriesfiles ..........47 
+Figure40.Influencesofcubicsplinecurvebypathlengthratioofadjacentsegments
+andthenumberofinterpolationpoints(angleis90degree) .............................48 
+Figure41.Influencesofcubicsplinecurvebyangleandpathlengthratioofadjacent
+segments(thenumberofinterpolationpointsis100)........................................49 
+Figure42.Influencesofpathdistanceandcurvaturebythenumberofinterpolation
+points ...................................................................................................................50 
+Figure 43. The first part of a branch?and?bound algorithm using an adaptive
+interpolationpointsselectionmethod ................................................................50 
+Figure44.Accumulatedadjacentsegmentslengthratio(Case:30L474)....................51 
+Figure 45. Trajectory candidates, new branched trajectorymodels and over killed
+region ...................................................................................................................52 
+Figure46.Multiplepiecewisecubicsplinesegmentscurve........................................52 
+Figure47.Cubicsplineblendingorweightingfunction ..............................................53 
+Figure 48. Branch?and?bound algorithm using adaptive selection and importance
+sampling...............................................................................................................54 
+Figure49.Rtrajtothenumberofpointsfrommultiple?trajectoriesfiles...................54 
+v
+Figure50.TrajectoryreconstructionfromFLGfile01L471. ........................................55 
+Figure51.Rclicktothenumberofpointsfrommultiple?trajectoriesfiles .................55 
+Figure52.davg_devtonumberofpointsfrommultiple?trajectoriesfiles .................56 
+Figure53.TrajectoryreconstructionfromFLGfile01M071........................................56 
+Figure 54. Computational time to the number of points frommultiple?trajectories
+files.......................................................................................................................57 
+Figure55.Comparisonofbranch?and?boundcomputationaltime(Case30L474) .....57 
+Figure56.(a)RtrajandRclickratiostothenumberofpointsfromone?trajectoryfiles;(b)
+RtrajandRclickratiostothenumberofpointsfrommultiple?trajectoriesfiles .....58 
+Figure 57. (a) davg_dev average distance error to the number of points from
+one?trajectory files; (b)davg_devaveragedistanceerrortothenumberofpoints
+frommultiple?trajectoriesfiles ............................................................................58 
+Figure58.(a)Computationaltimetothenumberofpointsfromone?trajectoryfiles;
+(b)computationaltimetothenumberofpointsfrommultiple?trajectoriesfiles
+..............................................................................................................................58 
+Figure59.Path?2 isreconstructedsuccessfulbypotentialpointand increasesRclick?2
+to100%(Case29L441).........................................................................................60 
+Figure60.Bothpath?1and ?2are reconstructed successfulbypotentialpointsand
+increaseRclick?1and?2to88.24%and85.71%respectively(Case30L492)..............60 
+Figure61.Path?1isapredictionerroranddecreasesRtrajto75%(Case01L471).....61 
+Figure62.Path?2isapredictionerroranddecreasesRtrajto66.67%(Case29L481)61 
+Figure63.Path?2isunexpectedandmatchesbatbehaviour(Case29L511)..............62 
+Figure64.Path?1isunexpectedandmatchesbatbehaviour(Case01L571)..............62 
+Figure65.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case01L531) ....63 
+Figure66.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case01M041)...63 
+Figure67.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case29L473).....64 
+Figure68.Path?2isunexpectedanddoesnotmatchbatbehaviour(Case29L421) ..64 
+vi
+ListofTables
+Table1.Previousworkwhoseexperimentalplacesarelocatedinopenfields.............6 
+Table2.Previousworksthoseexperimentplacesarelocatedinopenfields ...............9 
+Table3.Trajectoryparameterscomparisonbyspecies ...............................................10 
+Table4.Smoothingandinterpolationmethodologyutilizedinsomestudyareas .....15 
+Table5.ORTfileformatandrawdataexample...........................................................21 
+Table6.WNKfileformatandrawdataexamplefromsensorarrayA1 ......................21 
+Table7.WNKfileformatandrawdataexamplefromsensorarrayA2 ......................22 
+Table8.Pseudocodeofpre?processing.......................................................................22 
+Table9.Comparisonbetweentwointerpolationmethods.........................................24 
+Table10.Pseudocodeofinterpolation .......................................................................26 
+Table11.Bat'sflightfeatures.......................................................................................26 
+Table12.Correlationcoefficients ................................................................................31 
+Table13.Pseudocodeofbranch?and?bound ..............................................................35 
+Table14.Contingencytableoftrajectoriesinfigure24 ..............................................38 
+Table15.Pseudocodeofanadaptiveinterpolationpointsselectionmethod ...........51 
+Table16.Comparisonofassessmentresults,algorithms,andassessmentmethods .59 
+
+
+ 1
+1.Introduction
+
+Batresearchisnotonlyofinterestforbiologists,butalsoforthefieldsofagriculture,military,
+and industry.Flightandecholocationareunique featuresofbats thatseparate them from
+othermammalsandhavefacilitatedtheirrangeanddiversityofhabitats.Thus,itisvaluable
+to record both the flight paths and vocalizations of these creatures to gain a complete
+understandingoftheirbehaviour.Thereareshortcomingsincurrentresearchwhenanalyzing
+bat flight trajectories. For example, video source researchoften finds its fieldof vision is
+largely restrictedbyocclusionssuchas treesand thenarrow fieldofviewcapturedby the
+cameracomparedtoacoustictracking.Ontheotherhand,foraudiosourceresearch,often
+anexcessofvaluablemanpowerisspentinrecognizingandreconstructingcorrectbatflight
+trajectories,especiallywhenanalyzinggroupsofbats.Therefore,theaimofthispaperisto
+design and implement a framework that can automatically reconstruct multiple flight
+trajectoriesfrombats'callpositionsthusimprovingcurrentresearchmethods.Theresearch
+undertaken is divided into two parts: bat behaviourmodelling and analysis of flight path
+recognition.
+
+Therehasbeenmuchresearchonthesubjectofbats.Someresearchershavefocusedonthe
+relationshipbetweenbatspeciesandspecificbehaviourssuchasflightspeed(Haywardand
+Davis,1964;Whitakeretal.,1993;Shieletal.,1999;Riskin,2001;Hopkinsetal.,2003;Russ
+etal.,2003;Russoetal.,2005;Sánchez?Hernándezetal.,2006;Akinsetal.,2007;Grodzinski
+et al., 2009;Obrist et al., 2011).A numberof researchershave analyzed the relationship
+betweenbatspecies,echolocation,andtheirtrajectories(Denzingeretal.,2001;Russoand
+Jones,2002;Jensenetal.,2005;Hiryuetal.,2007;Surlykkeetal.,2009;Goerlitzetal.,2010;
+MossandSurlykke,2010;Corcoranetal.,2011).Otherresearchershavefocusedonhowto
+precisely recordbats' flight features like2D/3D flight trajectory, flightvelocity/acceleration
+andsonarspectrumcharacteristicsbycameraandacousticsensorarrays(Erwinetal.,2001;
+Ghoseetal.,2001;GhoseandMoss,2003;Leeetal.,2004;EastmanandSimmons,2005;
+Theriaultetal.,2010). 
+
+Incontrast,thisprojectaimstouse3Drawspatial?temporaldatafromecholocationsounds
+withpriorinformationonflightfeaturestobuildamodelthatrepresentspossiblebatflight
+paths. To themodel is then applied to reconstruct/detect flight paths using three basic
+elements of pattern clustering, smoothing, and branch?and?boundmethods. Additionally,
+twooptimizationmethodsutilizingcomputergraphicstheoriesareproposedhereforsolving
+themostcrucialproblem,the largecomputationaltime.Unlikemostonlinevisiontracking,
+thisprojectisfocusedonoff?linetrajectoryreconstruction. 
+ 2
+Anoverviewoftheprocessisshowninfigure1.Pre?processingincludesacoordinatesystem
+converterandatemporalandspatialdatapointsrectifier.Theformerconvertsrawdatainto
+aWNK file represented by spherical polar coordinates to Cartesian coordinates, and the
+latter implements two channel unbalance checking, temporal resolution checking, sorting
+andmonotoneconstraining,andphysicalreliabilitychecking.Thesepre?processedrawdata
+points are fully connectedwith each other and feed into the first clustering in themain
+algorithm – the trajectory's segment subset selection algorithm. In this algorithm, all
+segments will be clustered into several small groups; in each group, segments will be
+branchedtoextendtheirlengthineachiterationofthisalgorithm. 
+
+
+Figure1.Systemoverview
+
+Priorbiologicalmodelsareconstructedby filteringoutoutliers frommeasurementmodels
+whichhavecapturedoversixflightfeaturesofthebatNyctalusleisleribytraininghundreds
+of rawdata files. Thesepriormodelswork as filters and are combinedwith the function
+block?branch?and?bound?inthemainalgorithm.Inbranch?andbound,theflightfeaturesof
+eachsmoothedtrajectorywillbecomparedwithpriormodels. Ifthe flight featuresofone
+trajectorybeargreater similarity thanothers toprior flightmodels, then sucha trajectory
+willbegivenpermissiontoextenditslength.Afterthefinalclustering,thetrajectorywiththe
+longestlengthorthehighestlikelihoodineachclusterwillbeselectedandoutput.
+ 3
+OutputtrajectorypatternswillbeplottedbyMatlab,writtentoFLGfiles,fed intoMAYAfor
+animatedpresentation,andthenassessedbycomparingthemwithtrajectorytestpatterns.
+These trajectory test patterns have been reconstructed by the biologistmanually. Three
+different assessment methods are proposed here to gain an objective and reliable
+evaluation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 4
+2.Background
+
+2.1TargetDomain:BatFlight
+
+Thissectioncontainsrelevantbackgroundinformationonbats.
+
+2.1.1Echolocation
+
+Early bat research in biology focused on the classification of species and the relationship
+between species, reproduction, migration and distribution, feeding habits, and flight
+behaviour.Priorresearchontheimportanceofbatsandtheircloselinktothebiologicalfood
+chainandagriculturehasprovidedimportantfundamentalknowledge. 
+
+From a traffic, industry and military perspective, the most important discovery in bat
+researchhasbeenecholocation (Griffin,1958).Thisexplorationhasnotonlyexpandedthe
+areaofbatresearch itself,buthasalsodriventheprogressofacousticsand itsapplication,
+andhasenabledhumanstogainalargevarietyofknowledgefromthismostdiversegroupof
+mammals.Forexample,peoplehave investigatedbatsutilizingmorphological,physiological
+andbiochemicaltechniques,andappliedmechanicsandaerodynamictheorytoanalyzeand
+have subsequently learned how to improve flight efficiency and increase flight capacity
+(Maina, 2000; Watts et al., 2001). Moreover, the principles of object detection and
+classificationbyultrasoundlearnedfrombatshavebeenappliedtoradarandsonarsystems.
+Becausetheircapabilitieshaveevolvedforover50millionyears,studyingor imitatingbats
+has provided an excellentway to form a robust, adaptive and accurate detection system
+(Holderiedetal.,2008;HurtadoandNehorai,2008;Ballerietal.,2009,2010a;2010b).
+
+Tofacilitatemovementinthedark,batshavedevelopedecholocationbehaviour.Ultrasound
+is emitted frombat'smouthornose, reflectedoffobjects likewalls, treesor insects and
+receivedbackby theirears.Therefore,echolocationenablesbats to recognizeanobject's
+position,size,directionofmovement,velocityandevenitstexture. 
+
+The sounds of a bat's echolocation signal can be broadly divided into two categories,
+constant frequency (CF) and frequencymodulated (FM). The signal characteristic of the
+constantfrequencyissimple,andithasalowerbandwidthandlongerduration.Incontrast,
+the frequencymodulated signal ismore complicated: it has a broad bandwidth, a short
+durationtimeandisoftenmulti?harmonic.Eachsoundcategoryhasitsownmerit;Simmons
+etal.(1979)andBellandFenton(1984)haveallstatedthattheconstantfrequencymethod
+ 5
+has a better ability to assess the relative velocity between the target object and itself
+becauseof theDopplerEffect. In contrast, themodulated frequency signal ispreferred to
+recognizethedistance,direction,andtexture informationfromthetargetobject. Inreality,
+thesetwotechniquesrarelyoccurinisolation.Infactbats’echolocationcanbedividedinto
+three different methods: short?CF/FM, FM/short?CF, and long?CF/FM, learned from the
+featuresoftheirsoundemissionpatterns(Simmonsetal.,1979).Weknowthateachspecies
+ofbathas itsowndistinctacousticsignaltypethatwillbeused inecholocation,andwhich
+canalsobevariedinasituation?dependentmanner.
+
+Besidesthepotentialofsoundemissionpatternsofdifferentspeciesbeingdifferent,within
+thesamespeciesthepulserepetitionratesofsoundemissionpatterns,frequency,andcall
+durationwillalsobechangeduringinsectcapture.Ingeneral,therateisslowbeforethebat
+findsaprey,butthisratewillbeincreasedasthebatdetectsandapproachesitspreytokeep
+abreastofthemovementandpositionofthepreyuntil itscapture.Thisforagingsequence
+can be divided into three phases: search, approach, and “terminal buzz”, as figure 2
+illustrates (Moss and Surlykke, 2010). The pulse repetition rate is about 5 to 10 callsper
+second in the search phase, and increases from 20 to 80 to 170 calls per second in the
+approachandfinalphases.
+
+
+Figure2.Thechangeofpulserepetitionrateinabat'sforagingsequence
+Source:MossandSurlykke,2010.
+
+Basedonthesefeaturesofecholocation,thebiologistcancollectbatdataandclassifythem
+muchmoreeasilythanaspotwatch.Thistechniquewasfirstusedtocollectbatdistribution
+data in the London area in 1965 until 1980 (Hooper et al., 1981). Today, such use of
+ultrasonicreceiversandthemonitoringoftheecholocationofbatshasbeenamaintrendin
+batresearch.Ofcourse,suchaudiosourcelocalizationhasitsowndrawback,andthiswillbe
+describedindetaillater.
+
+ 6
+Alternatively,videosource localization isanotherusefulmethodtocollectbatdatasuchas
+trajectory.Theissuehereistheconsiderablyrestrictedvisionbyocclusionssuchastrees;the
+comparatively small fieldofview,andpoor illumination levels.Moreover,gainingazimuth
+andelevation information to constructa threedimensional flight trajectory isanotherbig
+task.
+
+
+2.1.2BatGroups
+
+Itiswellknownthatbatsaggregateintosleepinggroupsforthermoregulation(Twente,1955,
+1956;Herreid,1963).Batsmaygatherinclusterswithbodycontactcomprisingfromafewto
+thousands of individuals (Allee, 1927), which then fly out together for foraging in the
+daytime.This interestingaggregationbehaviourprovidesanexcellentresearchtopicforthe
+fieldsofanimalaggregationandgroupbehaviour,suchasemergencybehaviour(Allee,1927;
+Millsetal.,1975).Nevertheless, it complicates theworkofbatmonitoringwhetherusing
+videooraudiosourcelocalizationsinopenfields.
+
+Indoorexperimentsaremuchsimplerthanfieldexperiments.Forexampletheparametersin
+theformercanbecontrolledmuchbettere.g.batspecies,batnumbers,windspeed,volume
+of space and illumination. However, their results are usually restricted, not universally
+applicable, and are not applicable for all conditions because bats change their call
+parameters and flight behaviour according to their surroundings (Hagino et al., 2007;
+HaywardandDavis,1964).Indoorexperimentscanonlyreplicatesimilarsituations,suchas
+batsflyinginamineshaftorcavetunnel(Leeetal.,2004). 
+
+These facts reveal the importance of a robust methodology that can cope with most
+environmentalandmeasurementproblems,andonethatcanalsocollectandclassifydata
+correctly.
+
+Table1.Previousworkwhoseexperimentalplacesarelocatedinopenfields
+Studies Batspecies(Indoor/Fieldstudies) Experimentmethods
+EastmanandSimmons(2005) Eptesicus,MyotisandPipistrellus(Field) 1cameraand1microphonearray
+Goerlitzetal.(2010) NyctalusleisleriandB.barbastellus(Field) microphonearrays
+Haginoetal.(2007) Pipistrellusabramus(Field) microphonearrays
+Leeetal.(2004) Tadaridabrasiliensis(Field) 2cameras
+Theriaultetal.(2010) Tadaridabrasiliensis(Field) 3cameras
+Zhengetal.(2009) Tadaridabrasiliensis(Field) 3cameras
+
+ 7
+Table1summarizessomebatfieldstudies inrecentyears.Theirmonitoringmethodologies
+can be divided into three types: audio, video, and hybrid type. The type of audio (using
+microphonesormicrophonearrays)utilizesacoustic theory to recordprecisecallemission
+positionsasshowninfigure3.Eachsetofsensorarraysreturnsone3Dpositionforabatcall.
+Forhigheraccuracy,positionsfrommoresensorsorsensorarrayscanbecombined(Hagino
+etal.,2007;Grodzinskietal.,2009;Goerlitzetal.,2010).However,errorsintroducedbyecho
+interference and grouping delay remain problematical and cannot be fixed. Besides, the
+reconstructionofbatpathisstillbymanualmeans,comparedtothenearestpreviousstudy.
+Of course, this is not satisfactory in terms of efficiency and accuracy, especially for
+measurementsofbatsingroups. 
+
+
+Figure3.Exampleofflighttrajectorymonitoringfromtwomicrophonearrays
+Source:Grodzinskietal.,2009. 
+
+The ambiguity caused by occlusion in single cameramonitoring can be solved by using
+severalcamerasatthesametime.So,theoreticallyspeaking,thevideocameratypecanhelp
+the biologist to explore the behaviour of animals in three dimensions effectively and
+efficiently. After preparation such as camera synchronization and compensation, and the
+extraction of the focal length and extrinsic parameters for each camera, some computer
+visionalgorithmsareutilized.Forexample,epipolarlinesmaybecreatedbytheprojectionof
+2Dpointsinthesingleview,andthen3Dpointscanbereconstructed(Leeetal.,2004;Zheng
+etal.2009;Theriaultetal.,2010).Besidessomefundamentalproblemsthatcanoccurinthe
+computervisionareasuchas illuminationandbackgroundnoise;cross?viewproblems;and
+theinherentnoisefromcamera,anotherrealisticproblemforresearchersistheexpenseof
+equipment such as thermal infrared or high?speed cameras. Moreover, camera
+compensationandtheoptimalchoiceoflook?atpointofcamerainthepreparationarevery
+importantfactorsthatcanaffecttheexperiment’sresultdirectly.
+ 8
+
+Finally,hybridtypesintegratenotonlythepositionsprovidedbyvideo,butalsotheazimuth
+and elevation information provided from acoustic data. This methodology appears the
+perfectmethodthatcancopewithmostproblemsthatoccurinthetwomethodsinisolation,
+nevertheless an issue that arises is in the actual combination. There are lotsof potential
+problemsthatcanhappeninthisphase.Infactsomecommentatorsfeelthatlittlemeritcan
+befoundinthismethod(EastmanandSimmons,2005).Moreover,similartotheissueswith
+theaudioanalysis,theautomaticreconstructionofa3Dtrajectoryisalsohardtoimplement
+thishybrid typeof investigation.Mostpreviousworksexcludeunwantedcallpositionsand
+alsoconnectedagreeablepointsinsequencemanually.
+
+
+2.1.3BatTrajectory
+
+An effectivebat flightpath includes accuratepositional and temporal information. This is
+alsoknownasitsflighttrajectoryandithelpsthebiologisttoexplorebatspecies.Realistically,
+it ishard to identifyabatspecies from the trajectoryalonebecauseall trajectoriesareso
+similar, but flight characteristics such as speed; acceleration; height and tortuosity
+information; and flightbehaviours such as target capturebehaviour ? includingdetection,
+localization,tracking,andinterceptionofinsectprey(Erwinetal.,2001);obstacleavoidance;
+landingflight;,andcommutingflight(e.g.flyingthroughacaveortunnel,orinanopenfield)
+allcontributetoanalysis.Besides,inter?individualandgroupbehaviourcanalsobeobserved,
+suchasmutualadaptivebehaviour;callchanges;andflightpathchangesbetweenthebats.
+Therefore,theseflightbehaviours,strategiesandtheirrelationshipwithvocalcontrolcanbe
+quantifiedandanalyzedmoreeasily(Surlykkeetal.,2009).
+
+Table2describessomepreviousworkwherebats'2Dor3Dtrajectorieswerereconstructed
+in their studies.Of these prior studies,most have been unable to reconstruct trajectory
+automatically,exceptthestudiesfromTheriaultetal.(2010)andZhengetal.(2009).
+
+Therefore,thisiswhythisresearchisattemptingtodesignandimplementaframeworkthat
+canautomaticallyreconstructmultipleflighttrajectoriesfrombats'callpositions.Indeed, it
+maybethefirstreportthatattemptstosolvethisproblemusinganaudiotrackingmethod.
+
+
+
+
+ 9
+Table2.Previousworksthoseexperimentplacesarelocatedinopenfields
+Studies Batspecies(Indoor/Fieldstudies)
+simultaneou
+slytracked
+individuals
+Experimentmethods
+Corcoranetal.(2011) Eptesicusfuscus(Indoor) 1 2camerasand1microphone
+EastmanandSimmons  Eptesicus,MyotisandPipistrellus  1 1cameraand1microphonearray
+Erwinetal.(2001) Eptesicusfuscus(Indoor) 1 2camerasand2microphones
+Ghoseetal.(2001) Eptesicusfuscus(Indoor) 1 2camerasand2microphonearrays
+Goerlitzetal.(2010) Nyctalus leisleriandB.barbastellus >1 microphonearrays
+Haginoetal.(2007) Pipistrellusabramus(Field) 1 microphonearrays
+Hiryuetal.(2007) Pipistrellusabramus(Indoor) 1 2camerasand1microphone
+Jensenetal.(2005) Eptesicusfuscus(Indoor) 1 2camerasand2microphones
+Leeetal.(2004) Tadaridabrasiliensis(Field) 1 2cameras
+Surlykkeetal.(2009) Eptesicusfuscus(Indoor) 1 2camerasand3microphonearrays
+Theriaultetal.(2010) Tadaridabrasiliensis(Field) Crowd 3cameras
+Zhengetal.(2009) Tadaridabrasiliensis(Field) Crowd 3cameras
+
+
+2.1.4BatTrajectoryModelling
+
+Flight trajectory encompasses important bat flight information such as flight speed,
+acceleration,height,tortuosity,flightbehaviours,andgroupbehaviours.Wecanemploythe
+quantitativedata collected fromonemonitoring type (audio, video,hybridor just from a
+spotwatch) to be the trial data for implementing amachine learning algorithm that can
+classifybatspeciesandtheirflightpathsfromrawdata.
+
+Firstly, a definition of “trajectory” is essential. The spatial?temporal bat trajectory in this
+projectisa3Dtimeseriesdataofthenotation: 
+
+? ?T 0ttztytx ?)(),(),( 
+
+where(x(t),y(t),z(t))arethecoordinatesofabatdetectedattimet(YangandChen,2010). 
+We can use these coordinates to gain other important measurements, like speed,
+acceleration and curvature radius from segment trajectories. Furthermore, Table 3 shows
+trajectory parameters published by other studies. In the tables, flight speeds and turning
+diameters from seven major species provide clear profiles that can be included in our
+algorithm, for example a filter can be implemented before clustering. Additional data
+ 10
+acquiredbyDr.HolgerR.Goerlitzwillbeanalysedlater.
+
+Moreover, Table3 also reveals some important information: flight speed in commuting is
+fasterthaninforagingbecausethelatterincorporatesmoreturns;alargerturningdiameter
+bringsafasterflightspeed;andthereislittlespeeddifferencebetweenintimatespecies.Of
+course, thereareother factors thatcanaffect flightspeedwhichhavenotrevealed in this
+table,suchasheadingdirection.Forexample,thespeedofbatsheadingawayfromtheroost
+isfasterthanthoseheadinginthegeneraldirectionoftheroost(Grodzinskietal.,2009).
+
+Table3.Trajectoryparameterscomparisonbyspecies
+Speed(m/s)
+Batspecies(task)
+Min Max Mean
+Turning
+diameter(m) Studies
+Nyctalusnoctula(Commuting) 8.33 15.00 11.67  Gaisleretal.(1979)
+Nyctalusleisleri(Commuting) 8.89    Shieletal.(1999)
+Nyctalusleisleri   10.3  Goerlitzetal.(2010)
+Nyctalusleisleri(Foraging)   6.59 2.42 Obristetal.(2011)
+P.pipistrellus(Foraging)   4.27 1.02 Obristetal.(2011)
+P.pygmaeus(Foraging)   4.49 1.13 Obristetal.(2011)
+P.nathusii(Foraging)   4.70 1.23 Obristetal.(2011)
+P.kuhlii(Foraging)   4.37 1.07 Obristetal.(2011)
+Myotislucifugus 2.24 8.49 5.36   MuellerandEmlen(1957)
+Myotiskeeni 3.13 4.34 3.73  HaywardandDavi(1964)
+Myotisthysanodes 3.31 4.38 3.84  HaywardandDavi(1964)
+Myotisvelifer 3.40 5.72 4.56  HaywardandDavi(1964)
+Myotisvolans 4.16 4.74 4.43  HaywardandDavi(1964)
+Myotisyumanensis 2.95 3.98 3.46  HaywardandDavi(1964)
+Myotisdaubentoni(Foraging)   3.97 0.88 Obristetal.(2011)
+Eptesicusfuscus 3.58 6.93 5.25  HaywardandDavi(1964)
+Eptesicusserotinus(Foraging)   5.24 1.53 Obristetal.(2011)
+Eptesicusnilssoni(Foraging)   4.27 1.01 Obristetal.(2011)
+Tadaridabrasiliensis 3.08 4.74 3.91  HaywardandDavi(1964)
+Tadaridafemorosacca 3.58 4.56 3.98  HaywardandDavi(1964)
+Tadaridamolossa 3.93 5.14 4.54  HaywardandDavi(1964)
+Tadaridateniotis(Foraging)   5.07 1.44 Obristetal.(2011)
+Tadaridabrasiliensis(Commuting) 4.17 12.50 8.33  Williamsetal.(1973)
+Tadaridabrasiliensis(Commuting)   9.38  Theriaultetal.(2010)
+Hypsugosavii(Foraging)   4.25 1.01 Obristetal.(2011)
+B.barbastellus   7.70  Goerlitzetal.(2010)
+ 11
+2.2PatternClassification
+
+Inthissectionsomepatternclassificationtheoriesandtechniqueswillbedescribed.
+
+2.2.1Real?timeTrackingandOfflineTrajectoryReconstruction
+
+Unlikereal?timetracking,thisprojectfocusesonofflinetrajectoryreconstruction.Real?time
+trackingusuallyutilizesarecursivealgorithmwhichisefficientincomputing(Sunetal.,2005)
+andprocessesdata inasingle forwardsequentialway (Garciaetal.,2007);besides, ithas
+been utilized inmany applications such as video surveillance, object searching in video
+databases,andtrafficmonitoringandcontrolsystems. 
+
+The basic concept of real?time tracking is to employ both object features and object
+dynamics to evaluate object locations in current measurements. The most popular
+spatial?temporalfilteristheKalmanfilter.Howeverthisisalinearfilterwhichcanonlymodel
+Gaussiannoise,and canoperateonlyone taskat a time (Kalman,1960). For copingwith
+above problems, some improvements have been proposed such as the extended Kalman
+filter, theunscentedKalman filter,and theparticle filter (YangandZhang,2007). Inrecent
+years,patternclassificationhasalsobeenutilizedinreal?timesystems.Calderaraetal.(2009)
+proposedamethod todetectandmodelobject trajectorybyusingamulti?camera setup,
+andtoidentifyeithernormalandabnormalpaths.Bertinietal.(2012)presentedasurveyfor
+anomaly searching and localization with an unsupervised method using non?parametric
+modelling. 
+
+Ontheotherhand,trajectoryreconstructionorsmoothingisabatchprocesswhichexploits
+allavailabledata.Theaimistolocateinterestingobjectsoverrecordeddatafiles(Garciaet
+al.,2007).Intheresearchareaofbiology,thebiologistdoesnotneedtoknowthedetailsof
+bats'flightcharacteristics,currentpositionsorabatgroup'sbehaviourinrealtime.Afterall,
+there is littleaction that thebiologistcan takeeven ifheorshehas thiskindof real?time
+informationfrombats.
+
+
+2.2.2TrajectoryReconstructionusingMachineLearning
+
+Similartotheresearchareaofimagesegmentationwhichpartitionsinputimageintoregions
+considered as homogeneous ? and can be implemented by different available techniques
+suchas region?based,edge?based,and clusterbased (JainandDubes,1988) ?a trajectory
+reconstructionalsocanbeimplementedusingdifferentmachinelearningmethodologies. 
+ 12
+In the application of an air traffic control (ATC) system, amodel based flight trajectory
+reconstructionwasproposed (Garciaetal.,2007).Foreach flight trajectory,eachsegment
+representedatimeperiodwhentheaeroplaneisflyinginaspecifictypeofmanoeuvresuch
+as uniform, transversal or longitudinalmotion, and decelerations. Yang and Zhang (2007)
+claimed that "the segment saysmore than the individualhypothesisbecausehigher level
+components always offer more information on the global structure than lower level
+primitives." That is why we usually directly break a complete trajectory into evenly
+distributedsegmentsorextractsegmentedinformationindirectly. 
+
+Aparametricreconstruction filter (IMM tracking filter) for thesegmentation thathasbeen
+describedabove is shown in figure4.The filterwas constructedwith threeKalman filters
+which worked in parallel andwerematched to eachmanoeuvre. A PART algorithmwas
+selectedtoextractsegmentalinformationfordiscriminationanalysisbasedonadatamining
+strategy(WittenandFrank,2000). 
+
+Suchmodel based reconstructionhas the advantageofhaving a less residual,over?fitting
+effect, and the number of reconstruction samples compared with the conventional
+interpolationmethodwhich usingmore control points bringsmore accurate data fitting
+(YangandZhang,2007).On theotherhand,amodelbased reconstruction ispreferred to
+enableuseofspecificmodelswithregularmotionpatterns;howevermotionpathsinsome
+applications are not usually specific and are in fact too complicated to bemodelled into
+regularpatterns. 
+
+
+Figure4.IMMtrackingfilterforsegmentation
+Source:Garciaetal.,2007.
+
+ 13
+In another trajectory reconstruction application, object tracking in sports video scenes, a
+swimmer’scaptrackingwasproposedbyYangandZhang(2007).Intheprocessofclustering,
+featureextractionwasutilizedbymeanshiftseeking(Comaniciuetal,2000)inthebeginning,
+and followed by an agglomerative hierarchical clustering, utilized to approach the local
+non?minimumsuppressionandgrouping. 
+
+Essentially, objects are grouped or clustered by hierarchical clustering algorithms with
+sequentialpartitions;ontheotherhand,partitionalclusteringalgorithmsdivideobjectsinto
+aspecifiednumberofgroupsdirectlyanddonotownaclusteringstructure(YangandChen,
+2010). Therefore, relying on this clustering structure, hierarchical algorithms are more
+multi?functionalthanthelatter.Forexample"asingle?linkclusteringalgorithmworkswellon
+data sets containing non?isotropic clusters including well?separated, chain?like, and
+concentricclusters,"(Jainetal.,1999).Incontrast,partitionalclusteringalgorithmshavethe
+meritofbeingabletohandleconsiderabledatasetsbecausetheyhaveaconcisestructure. 
+
+Next,forthedissimilaritymeasurements,themostpopulardistanceformulaforcontinuous
+features,theEuclideandistance,wasemployedinthisresearchwherethethresholdwasset
+to the projectedwidth of the lane in a swimming pool (Yang and Zhang, 2007), and the
+formulawithtwopartitionswasdescribedasfollows: 
+
+2ji
+21d
+1k
+2
+kj,ki,ji2
+xx
+)x,(x)x,(xd
+??
+??
+???
+?? ?
+?
+/
+
+
+wherex isapatternwith the featurevectorofd,andxiandxjarepatternsets.Euclidean
+distanceisusefultocheckthesimilarityordissimilarityofobjectsinlowdimensionalspace
+withcompactorisolatedclusters(MaoandJain,1996),whilewealsoneedtouseweighting
+ornormalizationschemesforpreventingtheinclinetowardthelargestscaledfeature(Jainet
+al.,1999).
+
+Finally, a cubic spline trajectory interpolationwasutilized to represent the swimming cap
+positioninoccludedsituations.Theresultsofthetrajectorysegmentationandinterpolation
+havebeenabstractedinfigure5,wherethetop?left,top?right,andbottomfiguresrepresent
+thehypothesis in the threedimensionalspace, theextracted trajectorysegments,and the
+finaltrajectoryafterinterpolationrespectively(YangandZhang,2007). 
+
+ 14
+
+
+Figure5.Trajectorysegmentationandinterpolationwheretheverticalcoordinateand
+horizontalplanerepresentframeindexandimageplanerespectively
+Source:YangandZhang,2007
+
+Two studies have been described in this section. The former reconstructed the flight
+trajectory of aeroplanes using amodel?based reconstructionmethod and a datamining
+classification strategy.Although thedegreeof freedomofabat's flightbehaviour ismuch
+largerthananaeroplane's,amodelbasedfilterwhichutilizesstatisticalmethodscanhelps
+ustodistinguishwhichsegmentsetbelongstowhichbat'strajectoryfromitsnoise,echoes
+andoutliers.
+
+On theotherhand, the latterstudywhich reconstructsswimmingcaps revealsacomplete
+guidetousingextraction,grouping,andsmoothingmethodstocopewithbackgroundnoise
+andlong?termocclusions.Admittedly,theresearchchallengessuchasbackgroundnoiseand
+long?termocclusionsandobjectivesarenot too largely similar to this study;however this
+literature gives confidence inutilizing the agglomerativehierarchical clusteringmethod in
+suchlowspeedrequirement,lowdatavolumeandhighspatialcomplexityproject.
+
+
+
+ 15
+2.3SmoothingandInterpolation
+
+In this section some smoothing and interpolationmethodswillbedescribed. Table4has
+revealedsomestudiesusingsmoothingandinterpolatingmethodologiesintheirstudyareas
+respectively.
+
+Table4.Smoothingandinterpolationmethodologyutilizedinsomestudyareas
+Studies Smoothingmethods Studyareas
+Erwinetal.(2001) Linearinterpolation Battracking
+Garciaetal.(2007) IMMfilterorB?splineinterpolation Aircrafttracking
+Garciaetal.(2008) IMMfilter Aircrafttracking
+Songtaoetal.(2010) Cubicsplineinterpolation Aircrafttracking
+FariaandDias(2009) Meanvaluefilter Gesturetracking
+Sunetal.(2005) B?splineinterpolation Keyframe?basedtracking
+Tomasietal.(2003) Linearinterpolation Gesturetracking
+Wattsetal.(2001) Linearinterpolation Battracking
+YangandChen(2010) Pricewisepolynomialinterpolation Pedestriantracking
+YangandZhang(2007) Cubicsplineinterpolation Swimmingcaptracking
+
+
+2.3.1LinearInterpolation
+
+Linear interpolation is the most common mathematical operation in computer graphics
+(ShirleyandMarschner,2009). Iftherearetwopoints(xi,yi)and(xi+1,yi+1)onacontinuous
+straight line y=P(x), for linear interpolation,eachpointon this line canbe soughteasily
+usingthefollowingparametriclineequation.
+
+)( i1i
+i1i
+i
+i y?yx?x
+x?xyP(x) ?
+?
+?? 
+
+However, if twopoints (xi,yi)and (xi+1,yi+1)are separated largelyory=P(x) isnotexactly
+linear, therewillbeahugeerrorbetween thecalculatedpointand realcurvewhenusing
+linear interpolation. In table 4, considering Erwin et al. (2001), Tomasi et al. (2003), and
+Watts et al. (2001)’s focus on gesture and bat tracking, themotion speed, region, and
+accuracyoftrackingobjectsarenotsohigh.Therefore,theusageofthelinearinterpolation
+methodintheseapplicationsonlyforsmoothingmaybeaneffectiveandefficientdecision.
+
+
+ 16
+2.3.2CubicsplineInterpolation
+
+In some interpolation applications, the smoothness of the curve is much stressed (e.g.
+aircraft tracking), and this curve's derivative equation needs smoothness at each corner.
+Cubic spline can satisfy this requirement, which allows for C2 continuity thatmeans its
+position, first and second derivative are continuous (Shirley andMarschner, 2009). If the
+Cubicsplineisusedforrepresentingatrajectory,therewillbenospeedvarietybetweenthe
+different trajectory segments; inotherwords, if the speeds of anobject in segments are
+different, the trajectorywillnotbe continuous.Moreover,anotherbenefitof cubic spline
+interpolationisthatitscoefficientsbendthesplinecurvetopassthroughalldatapointswith
+no gap nor erratic behaviour as shown in figure 6 (Rogers and Adams, 1990). This
+characteristicletcubicsplineinterpolationbesuitableforlownoiseapplications. 
+
+
+Figure6.Twopiecewisecubicsplinesegmentcurve
+
+Furthermore,itsequationhasbeenshownasfollows(RogersandAdams,1990),
+
+21
+4
+1i
+1?i
+ik,k ttt,tB(t)P ??? ?
+? 
+
+wherePk(t)representsthepositiononthecurveofcubicspline interpolationsegmentk;t1
+andt2areparametervaluesatthebeginningandendpositionsofsegmentkrespectively;
+Bk,iareconstantcoefficientsdeterminedbythefourparametersdescribedasfollows:
+
+??
+?
+?
+??
+?
+?
+?
+????
+????
+?
+?
+?
+?
+??
+?
+?
+?
+??
+?
+1k
+2
+1k
+1k
+2
+k
+1k
+3
+1kk
+k,4
+1k
+1k
+1k
+k
+1k
+2
+k1k
+k,3
+kk,2
+kk,1
+t
+P'
+t
+P'
+t
+PP2B
+t
+P'2
+t
+P'2
+t
+PP3B
+P'B
+PB
+)(
+)( 
+
+Cubicspline interpolation isfavourable incomputergraphicsandthefollowingreasonsare
+given:minimum?curvature interpolation (it presents the smoothest curve withminimum
+ 17
+curvaturebecauseofitsloworder);goodsymmetry(bothpositionsandderivativevaluesat
+start and stop points can be specified), and a good trade?off between smoothness and
+computationalcosts(ShirleyandMarschner,2009). 
+
+
+2.3.3B?splineInterpolation
+
+Formore complicated curve shapes, inpractice, the traditional interpolationmethodmay
+notbeasuitablesolutionbecausetheyhavepoorparametriccontinuityandnocontrolpoint.
+On theotherhand,controlpoints inapproximatingcurvessuchasBezierandB?splinecan
+shape their curves directly and bring about a better curve behaviour and local control;
+nevertheless approximated curves have difficulty in passing through these control points
+(ShirleyandMarschner,2009).Therefore, insomeapplications, iftabulatedvaluesneed to
+be passed through by a trajectory, approximating schemes may not be a wise choice.
+Moreover, unlike a Cubic spline curve defined by positions and derivate values at the
+beginningandstoppoints,aB?splinecurve isdefinedbycontrolpointsandbasicfunction,
+anditsdefinitionhasbeenshowninthefollowingequation(ShirleyandMarschner,2009):
+
+1nk2ttt,(t)NBP(t) maxmin
+1n
+1i
+k,ii ?????? ??
+? 
+
+whereBiarecontrolpoints(positionvector),Niarethenormalizedbasisfunction,andnare
+thenumberofcontrolpoints.
+
+In summary, thereare threepopular interpolationmethodswhichhavebeendescribed in
+this section: linear interpolation, cubic spline interpolation andB?spline interpolation. For
+the applicationof smoothing, interpolation is usually the last taskorblock in the system
+followed by visualization for human inspection. In this project, smoothing for human
+visualizationwillbeimplementedbylinearinterpolationbecausethecurvatureinbat'sflight
+pathisnotsocomplicatedandtherearenottoomanymissingpointsinatypicalflightpath.
+WithsomespecieslikeNyctalusleisleri,theirflightpathscanevenbeseenasastraightline;
+besides,weknowthatabat'sflightspeedisnotthatfastwhencomparedwiththespeedof
+ultrasound. 
+
+However, theapplicationof interpolation that reallyconcerns this study isnot smoothing.
+Interpolationalsocanbeutilizedinthelearningcycleofclustering.Inacluster,interpolation
+canhelptoapproachamoreaccurateevaluationofthesegmentorientationvectorsatboth
+beginningand stoppoints. Furthermore,higherorder interpolation canhelp to re?sample
+ 18
+segments for improving the performance of features for extraction andmodelling. If the
+utilizationof the interpolation is in the learningcycleofclustering,not just smoothing for
+humaninspection,thenrequirementsofsmoothnessandaccuracywillbecomemuchmore
+important;therefore,thesplineinterpolationmethodmaytakeonanimportantroleinthis
+project. Furthermore, if we consider that all data points need to be passed through by
+reconstructedcurves,cubicsplineinterpolationmethodwillbetheoptimumchoiceforthis
+study.
+ 19
+3.Methods
+
+Inthischaptersomeimportantunits,methodologiesandassessmentswillbedescribed.
+
+3.1Inputdataanalysisandpre?processing
+
+Bat's flight trajectories, including sequential time and three dimensional flight position
+informationarerecordedbytwosinglesensorarraysoffourmicrophonesrespectivelywhich
+arespacedapproximatelyfrom5to10metersapartasshowninfigure7. 
+
+
+Figure7.MultisensorarraysinClifton
+Source:PictureisprovidedbyDr.HolgerR.Goerlitz
+
+Thesesequentialtimestamps,recordedingoodqualitybybothsensorarrays,arecalculated
+and synthesized intooneORT filewhich lists sequential timestampswithhigher accuracy
+than those recorded by individual arrays listed in a WNK file. However, sequential
+timestamps listed inanORTfilearenotalwaysenough;forexample, ifonebatchanges its
+trajectory, fliesonthesideofoneof thesensorarrays,willbringa largedifferenceof two
+distancesbetween thebatand twosensorarrays.Theseunbalancedsignalstrengths from
+thetwosensorarrayscausesomeimportantspatialdatapointstodisappearintheORTfile.
+In thiskindofsituation,WNK fileswillbeused tocompensate for themultisensorarrays'
+calculationerrorinthepre?processingpartofouralgorithm.Moreover,temporalresolution
+deviation and physical reliability from biological knowledge will also be corrected and
+consideredinthepre?processing.
+ 20
+Pre?processing isdescribedbyfigure8which includesacoordinatesystemconverter,anda
+temporalandspatialdatapointsrectifier.TheformerconvertstherawdataintheWNKfile
+represented by spherical polar coordinates to Cartesian coordinates, and the latter
+implements two channel unbalance checking, temporal resolution checking, sorting and
+monotoneconstraining,andphysicalreliabilitychecking.
+
+
+Figure8.Pre?processingblock
+
+In the coordinate system converter, theenvironmentparametersof theplacementof the
+twosensorarrays(A1andA2)includinghorizontalorientationdegrees(Alpha1andAlpha2),
+distancebetweentwoarrays(Distance),andtheheightofcentralmicrophones(H1andH2)
+describedinfigure9andfigure10areutilizedtoconstructtheirsphericalpolarcoordinates,
+asshowninfigure11.
+
+
+Figure9.Placementofmultisensorarraysintopview
+
+
+Figure10.Placementofmultisensorarraysinsideview
+
+ 21
+
+Figure11.Multisensorarraysandsphericalpolarcoordinate
+
+TheCartesiancoordinates(X,Y,Z)arerelatedtothesphericalpolarcoordinates(r,?,?)by
+thefollowingequations:
+
+???
+?????
+?????
+cos
+sin
+sincos
+rZ
+sinrY
+rX
+
+
+Thus, raw data both fromWNK andORT files can be processed in the same coordinate
+system.Duringeachcomputationalprocessofthetrajectories’reconstruction,twoWNKfiles
+which recorded temporalandspatialdatapoints from twosensorarraysandoneORT file
+whichrecordedtemporalandspatialdatapointssynthesizedfromtwosensorarrayswillbe
+processed.Examplesofdifferentformatsoftherawdatafileareextractedandshownfrom
+table5totable7.
+
+Table5.ORTfileformatandrawdataexample
+T1[s] T2[s] X[m] Y[m] Z[m]
+3.2609 3.2540 8.49 21.01 5.62
+3.4406 3.4358 8.20 20.51 5.94
+
+Table6.WNKfileformatandrawdataexamplefromsensorarrayA1
+T1[s] Phi Theta r[m]
+3.2609 ?3.5 11.3 6.58
+3.3580 ?22.8 51.1 2.05
+
+
+ 22
+Table7.WNKfileformatandrawdataexamplefromsensorarrayA2
+T2[s] Phi Theta r[m]
+3.2540 ?11.6 9.4 18.49
+3.4358 ?10.8 11.0 35.42
+
+In the temporalandspatialdatapoints rectifier, rawdata fromORTandWNK fileswillbe
+merged in thebeginning tocompensate for theunbalancedsignalstrengthsreceived from
+the two sensor arrays. Before merging, a simple temporal resolution check will be
+implemented to delete the duplicate data points between the ORT andWNK files, and
+furthertorestrictthenumberofdatapointsfromtheWNKfiles.Then,thesetemporaland
+spatial data points will be sorted for monotonic timing sequence. Besides, the second
+temporal resolution checking will be implemented again. If the timing difference of
+neighbouringtemporalpointsistoosmall,forexamplelessthan0.1ms,areasonabletiming
+shiftwillbe insertedbetweenthesetwoneighbouringtemporalpointsforamoreefficient
+and reliable computation in the latter phase. Finally, physical reliability from biological
+knowledgewill alsobe checked. For example, the clickpositionofheight in Z coordinate
+mustbelargerthanzero. 
+
+Finally,thepseudocodeofthisalgorithmisdescribedinthefollowing.
+
+Table8.Pseudocodeofpre?processing
+? LoadORTfileandWNKfile
+? Checkempty
+? CloseORTfileandWNKfile
+? Fori=1tolengthofWNKfile
+– RetainWNK(i)ifthetimingdifferencebetweenORT(:)andWNK(i)>100ms
+? EndFor
+? Loadenvironmentparametersofplacement
+? ConvertWNKfile'scoordinatesystemfromsphericalpolartoCartesian
+? ORT&WNKfile=mergeandsortORTfileandWNKfile
+? Fori=1tolengthofORT&WNKfile?1
+– ConstraintimingdifferencebetweenORT&WNK(i)andORT&WNK(i+1)>0.1ms
+– ConstrainZ>0
+? EndFor
+
+
+
+ 23
+3.2Interpolation
+
+Thebat's flight trajectory is representedbybat clicks; from thepointofviewof sampling
+theory, thesebatclicksaresamplingpoints,and thecontinuous flightcurve issampledby
+thebat'svocal system.Unlikegeneral sampling systems, thisbiological sampling system is
+hardtopredictandmodel;forexample,theinputfrequencyandsamplingbandwidthofthe
+quantizer,thebat'svocalsystem,differbetweeneachbatateachtime–therearetoomany
+degrees of freedom. If we cannot model this sampling system precisely, it is hard to
+transformthesediscretedatapointstoacontinuoustrajectorycorrectlybyusingtraditional
+samplingtheoryandmethodology. 
+
+Moreover,ourmicrophonearrayssystem isanothersamplingsystemwhich receivesmany
+acoustic sampled signals from the same bat, different bats, echoes and noise in a short
+periodoftime.Allsampleddatapointsaremixedtogetherandarehardtodistinguishand
+analyze.Whatwecandoisusesomegraphicsskillstosimulateandreconstructtheoriginal
+flightcurves,anddiscoverthosemostprobabletrajectorieswhichfitthebiologicalfeatures
+best.Therefore,samplingtheoryandcomplicatedbiologicalmodescanbeabandonedinthis
+project; incontrast, interpolationskillswillbeutilized inthisworktotransferdiscretedata
+points toa continuous trajectory.Additionally, thebats’ flight featuresandmodelswillbe
+extractedandconstructedfrompriorwork?justasimplestatisticalmodellingprocess?and
+willbedescribedinnextsectionindetail.
+
+Informationand featurescouldbeextracted from segmentsmuchmore readily than from
+discretedatapoints.However,segmentsestablishedbylinearinterpolationarenotsufficient
+in this work, because the trajectory of a bat's flight is always continuous and smooths
+thoroughly,evenontortuosity.Theremustbealargedeviationbetweenthepredictionand
+therealcaseifalinearinterpolationsegmentisconsideredhere.Forexample,threebatclick
+pointsarerecordedbyoursystem,andtheirtimeandX/Y/ZdatapointsareP1={4.44,7.76,
+6.54, 7.01}, P2={4.73, 8.53, 0.68, 2.67} and P3={5.14, 6.76, ?1.81, 6.80}. Their curves are
+reconstructedbyusing both linear andhigherdegreepolynomial interpolations shown in
+figures12and13.
+
+ 24
+ 
+Figure12.Linearinterpolation Figure13.Higherorderpolynomialinterpolation
+
+The comparison of features such as path length, maximum and minimum speeds, and
+maximumcurvaturebetween thedifferent interpolations isdescribed in following table. It
+can be concluded the reliability of features such as path length, minimum speed and
+maximum curvature from polynomial interpolation ismuch better than that from linear
+interpolation.
+
+Table9.Comparisonbetweentwointerpolationmethods
+Interpolation PathLength 
+(m)
+MaxSpeed 
+(m/s)
+MinSpeed 
+(m/s)
+MaxCurvature 
+(1/m)
+Figure12. 12.47 25.51 12.36 0.10
+Figure13. 13.74 25.69 15.31 0.11
+Error(%) 10.23 0.72 23.82 9.80
+
+Cubicspline interpolation isbasedonthethirddegreepolynomial interpolation,andwhich
+cubicsplineinterpolationcanmeettherequirementofallowanceforC2continuityhasbeen
+describedbefore;besides,themostimportantpointisthatitscoefficientsbendthecurveto
+pass through all data points with no gap nor erratic behaviour. It is hoped that the
+reconstructed trajectory can pass through its own data points similar to the biologist’s
+manualcalculation.Ofcourse,therewillbesomeerrorsbetweentherealclickpositionsand
+thetemporalandspatialpositionsrecordedbythemicrophonesensorarrays,buttheselittle
+deviationsmaynotbeamajorproblem. Furthermore, in termsof cost consideration, the
+cubicspline interpolation istheminimum?curvature interpolation,andhasagoodtrade?off
+betweensmoothnessandcomputationalcosts(ShirleyandMarschner,2009).Ontheother
+hand,ifweconsiderahigherorder(largerthan3)polynomialapproximationusingtheleast
+squaremethod (Matlab function:polyFit) toguaranteeallpossibledatapointsarepassed
+through,weneedtopaymorecomputationandstabilitycosts.
+
+ 25
+
+Figure14.Theimplementationofcubicsplineinterpolationin3Dspace
+
+3D cubic spline interpolation in Matlab cannot be implemented directly because the
+relationship between interpolated points and arguments of the spline function inMatlab
+should bemonotonic and uniquely specified. Therefore, segments projected to the X/Y/Z
+coordinatesareinterpolatedonthetimedomainfirstlyandthencombinedlater,asshownin
+figure14,wherethenumberofinterpolationpointsineachsegmentissetto2.
+
+Thechoiceofthenumberoftheinterpolationpointsisimportant.Choosinglargerre?sample
+pointsbringsabetteraccuracy,but takesahuge computational time;on theotherhand,
+choosing lesspointssavesmorecomputationalcostsbutmaybringpoorresultsof feature
+extraction.Ofcourse,wecanusesome iterationalgorithmstofindouta localbestsetting,
+but italsotakes lotsoftime;especially, itmaybeadisaster iftherawdata is large. Inthis
+firstversionofthisproject,thenumberof interpolationpoints isfixedto50.Thisconstant
+value guarantees the reliability to a certaindegree formost segments in the trajectories;
+however,italsotakesalargecomputationaltimeformostsegments.Ontheotherhand,for
+some trajectorieswhose subset segmentshave a largeunbalancedpath length compared
+withtheirneighbours,50pointsmaynotbeenoughtoguaranteetheircapturedfeaturesare
+reliable.Optimizationofcomputationaltimeandimprovementofreliabilitywillbediscussed
+inthenextchapter.
+
+Table10showsthepseudocodeofinterpolationwhereNis50inthischapter.
+
+
+ 26
+Table10.Pseudocodeofinterpolation
+? LoadtimeandX/Y/Zpoints:T,X,YandZ
+? Loadthenumberofinterpolationpoints:Npoints
+? Fori=1tolengthoftimepoints?1
+– Splitthetimepoints'interval(i)intoNpartitionsequally:N*dt(i)
+? EndFor
+? InterpolatedXpoints=spline(T,X,dt);
+? InterpolatedYpoints=spline(T,Y,dt);
+? InterpolatedZpoints=spline(T,Z,dt); 
+
+
+3.3PriorFlightModel
+
+Toreconstructabat'strajectoryautomatically,ouralgorithmneedstorecognizedatapoints
+orsegmentswhichbelong tobatclicks fromechoesandoutliers.Therefore,capturingbat
+features frompriorresultsand thenconstructingabat flightmodelare importantsteps in
+thisproject. In the literature review, thereare some flightparametersofdifferent species
+collected, such as in Table 3; however, they are not complete and adequate enough to
+distinguishmultiple andmore complicated trajectories. Therefore, hundreds of bat's raw
+datafiles(FLGfiles)fromDr.HolgerR.Goerlitzarearrangedandanalyzed inthisprojectto
+buildamorecompleteandaccurateNyctalusleisleribatmodel.
+
+TenfeaturescapturedandextractedfromdatapointsineachFLGfilearelabelledfromx1to
+x10 and described in the following table. Each FLG file includes one to several
+hand?reconstructedbat'strajectories,ofwhichdatapointsarerecordedoverashortperiod
+oftimeandprocessedbybiologists.
+
+Table11.Bat'sflightfeatures
+x1=maximumflightspeed.
+x2=minimumflightspeed.
+x3=averageflightspeedinxcoordinate.
+x4=averageflightspeedinycoordinate.
+x5=averageflightspeedinzcoordinate.
+x6=maximumflightcurvature.
+x7=maximumclicktoclickdistance.
+x8=minimumclicktoclickdistance.
+x9=maximumclickfrequency.
+x10=minimumclickfrequency.
+ 27
+Forcapturing theabove ten features,point?to?pointdistance,point?to?pointvelocity, three
+points curvature radius and point?to?point frequency are calculated; specifically, before
+calculating these parameters, each prior trajectory is re?sampled (interpolated by cubic
+spline interpolation) for better accuracy. Furthermore, unlike the other parameters, the
+calculationofthe3Dcurvatureradius ismuchmorecomplex.Curvaturemeanshow fasta
+curvechangesitsdirection,andalsorepresentstherateofchangeofthedirectionofacurve
+atonepointtoanotherpointwithrespecttothedistancebetweenthesetwopointsalong
+the curve. If our curve y = f(x) is on a two coordinates plane, then the curvature (K)
+representstod?/dc,where?isthetendencyofthecapturedtangent,andcisthearclength
+of twopointson thecurve (Kline,1998).Theradius (R)of thecurvatureofacurveatone
+pointisdefinedtobe1/K,asshowninfigure15.
+
+
+Figure15.Radiusofcurvature
+
+Therefore,theformulaoftheradiusofcurvatureisoftenrepresentedbythefollowing(Kline,
+1998):
+
+''
+232'
+y
+y1
+K
+1R )( ???? ?d
+dc 
+
+Unfortunately, this formula cannot be utilized in 3D space directly because curvature or
+radiusofcurvaturecannotbecombinedorcapturedfrom itsbodydoubleprojectedtoX?Y,
+X?Z,andY?Zplanes.Additionally,abat's trajectory in3Dspace isnotalwaysmonotonicso
+thisdifferentialequationisdifficulttobeimplementedhere.Incontrast,inthisproject,a3D
+circle which passes through three adjacent points on the curve (concyclic points) is
+constructed, and then the radius of curvature can be captured by solving simultaneous
+equationswiththreedegreesandfourunknownsasfollowing,whereOiscentreofthecircle,
+P1,P2andP3areadjacentconcyclicpoints,andR1,R2andR3areradiusesrespecttoeach
+ 28
+point: 
+
+??
+??
+?
+???
+???
+???
+22
+zz
+2
+yy
+2
+xx
+22
+zz
+2
+yy
+2
+xx
+22
+zz
+2
+yy
+2
+xx
+R3)P3?(O)P3?(O)P3?(O
+R2)P2?(O)P2?(O)P2?(O
+R1)P1?(O)P1?(O)P1?(O
+
+
+Ideallyifdc(minimumlengthofarclengthoncurve)iscloseto0,thecentreofthecircleis
+unique, andR1,R2 andR3 are equal.However, in our case, thenumberof interpolation
+points cannot be infinitely great, and there may be no solution. So, Moore?Penrose’s
+“pseudoinverse”isutilizedheretocomputeabestfitting?leastsquaressolution.
+
+The features'mean and standard deviation are extracted from a hundred trajectories for
+constructingGaussianmodelsasdescribedinfigure16,where?denotesmean,thestandard
+deviation (?) is therootof itsvariance,?2,andXmeans the featuredvariable.Toobtaina
+biologicalmodel (B), outliers are filtered out frommeasurementmodel (M). Thatmeans
+someparticularlynoisydatapointsareremovedbeforethestatisticalcalculation.
+
+
+Figure16.Gaussianmodel
+
+Figure 17 showsbothnormalized accumulateddistributions from FLG files (bluebar) and
+prior bat flight’s Gaussianmodels (red line) over ten features. In this project,we utilize
+Gaussiandistributiontomodeleachflightfeature;however,therealsituationisthatnotall
+theflightfeatures'accumulateddistributionsaresimilartoGaussiandistributionsuchasthat
+shown in figure 17(f), maximum flight curvature. In other words, there will be some
+difficulties when measuring the likelihoods of maximum flight curvature of a few
+reconstructedcases.
+
+ 29
+ 
+
+ 
+
+ 
+
+ 
+
+(a) (b)
+(c) (d)
+(e) (f)
+(g) (h)
+ 30
+ 
+Figure17.Normalizedaccumulateddistributionsandpriorbatflightmodels.(a)?(b)max.and
+min.flightspeeds;(c)?(e)averageflightspeeds;(f)max.flightcurvature;(g)?(h)max.andmin.
+click?to?clickdistances;(i)?(j)max.andmin.clickfrequencies
+
+Figure18(a)comparesbothnormalizedaccumulateddistributions(brownandpurplebars)
+fromFLGfilesandpriorbatflights’Gaussianmodels(thingreenandbluelines)onmaximum
+and minimum flight speed with bat behaviour models (thick blue line) which refer to
+previousliterature.ThespeedaccumulateddistributionsandGaussianmodelsaresimilarto
+the previous literature.By contrast, figure 18 (b) compares both normalized accumulated
+distributions(brownbar)fromFLGfilesandpriorbatflights’Gaussianmodel(thingreenline)
+onmaximum flight curvaturewithbat'sbehaviourmodel (thickblue line)which refers to
+previous literature. It reveals theaccumulateddistributionofbat flight curvaturematches
+theliteratures',andthatthecurvaturemeasurementmethodologyisreliable.Nevertheless,
+ourbatflightGaussianmodelisimperfect,andtheremaybeissuesinthereconstructionofa
+fewcases.
+
+ 
+Figure18.Comparisonofaccumulateddistribution,priorbatflightmodelsandliterature
+sssbehaviourmodelsonfeaturesofmax.andmin.flightspeedsandmax.curvature
+
+Finally,theircorrelationisanalyzedintable12,andtheclusteredresultofbatflightfeature
+indicators isshown in figure19. If indicatorshaveahigherpositiveornegativecorrelation
+(i) (j)
+(b)(a)
+ 31
+andareorthogonalwitheachother,Rclusteringcanbeimplementedandhelptoreducethe
+complexity.This result shows thereareonly two indicators thathaveahigher correlation
+(maximumclick?to?clickdistanceandminimumclickfrequencyhavealargercorrelation),and
+the benefit of reduction is not large.On the other hand, this result demonstrates these
+indicatorshavegreatindependentrepresentations.
+
+Table12.Correlationcoefficients
+ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10
+x1 1         
+x2 0.190 1        
+x3 ?0.206 0.255 1       
+x4 0.474 0.436 ?0.405 1      
+x5 ?0.208 0.005 0.241 ?0.308 1     
+x6 0.211 ?0.402 ?0.128 ?0.161 0.011 1    
+x7 0.205 0.274 0.060 0.000 ?0.020 ?0.079 1   
+x8 ?0.212 0.323 0.180 0.030 0.253 ?0.233 0.361 1  
+x9 0.410 ?0.311 ?0.247 ?0.134 ?0.035 0.553 ?0.158 ?0.443 1 
+x10 ?0.076 0.101 0.146 0.054 0.077 ?0.020 ?0.718 ?0.271 0.037 1
+
+
+Figure19.Clusteredresultofbatflightfeatureindicators
+
+
+
+
+
+
+
+(
+ 32
+3.4Trajectory'sSegmentSubsetSelectionAlgorithm
+
+Atrajectory'ssegmentsubsetselectionalgorithmbasedonclusteringandbranch?and?bound
+methodsisimplementedtoselectthebestsubsetofsegmentsfromthetrajectory'ssegment
+set.Thedifficultyofsegmentsubsetselectionisintheselectionofasubsetofsegmentswith
+thebestcombinationandtheoptimumbatbehavioursfroma largesetofsegments.Brute
+forceevaluationofallthesubsetsisunfeasible.Incontrast,thebranch?and?boundalgorithm
+isefficient.Itrejectstrajectorieswithlowerprobabilitywithoutinterviewingallthesubsets,
+andguaranteesthattheselectedtrajectoryisthegloballybestrepresentation(Narendraand
+Fukunaga, 1977). Furthermore, the model based branch?and?bound helps us select
+trajectories whichmatch bat flight models; however, it is hard to distinguish trajectory
+clusters. In contrast, agglomerative clustering using an unweighted Jaccard distance, and
+longestpathselectionmethodareutilizedinthisprojecttohelpusselectthebesttrajectory
+ineachcluster,asshowninFigure20.
+
+
+Figure20.Systemviewoftrajectory'ssegmentsubsetselectionalgorithm
+
+Infigure20,inputpatterns(thebetter3pointsegments)areprocessedbya3pointsegment
+selectionalgorithmwhichwillbedescribedbelow.Thetrajectory'ssegmentsubsetselection
+recursion starts at the first clustering block and ends at thedecisionmakingblockwhich
+comparesthe iterationdepthwiththenumberofrawdatapoints. If the iterationdepth is
+largerthanthenumberofrawdatapoints,recursionwillbeterminated,andsegmentswill
+be clustered by the second clustering block and then passed to the next stage. In each
+iteration, segments are clustered firstly, and then these clusters are processed by
+branch?and?boundalgorithmsindividually.Finally,theseextendedandprunedsegmentsare
+mergedandpassedtothenextstage,eitherthefirstclusteringorthesecondclustering.
+
+ 33
+3.4.13PointSegmentSelectionAlgorithm
+
+Beforethetrajectory'ssegmentsubsetselection,sequentialtimeandX/Y/Zpositionpoints
+arefilteredbya3pointsegmentselectionalgorithm,asshowninfigure21. 
+
+
+Figure21.3pointsegmentselectionalgorithm.
+
+In this process, data points are fully connected to the 3 point segments network and
+interpolatedinthebeginning.Then,thebatflightparametersarecalculatedandsubstituted
+intothebatflightGaussianmodelstogetthe likelihoodofeachflightfeature.Amaximum
+likelihoodmethod isutilizedhere toobtain a representationof thewhole features. For a
+moreefficientcomputation,alogarithmisutilizedtoreplacetheproductionoperationwhich
+isdescribedinthefollowingequation,whereiisfrom1to7,andL(i)representsmax.flight
+speed,min.flightspeed,max.flightcurvature,max.click?to?clickdistance,min.click?to?click
+distance,max.clickfrequencyandmin.clickfrequencyrespectively.
+
+?
+?
+?
+7
+1i
+iLlogL )( 
+
+Finally, the likelihoods of all segments are normalized and compared, and then some
+segmentswithlowerlikelihoodsorrepeatedsegmentsareremoved.
+
+
+
+
+
+
+
+
+
+ 34
+3.4.2Branch?and?boundAlgorithm
+
+In a branch?and?bound algorithm, as shown figure 22, segment patterns are branched
+sequentiallyandthoroughlyfromtheircurrentnodestotheendnodeoftherawdatapoints.
+Then,acubicsplineinterpolationandmaximumlikelihoodmethodareimplemented,similar
+to theutilization in the3point segment selectionalgorithm.The threshold inmaking the
+decision block here is defined as themaximum 1% of whole segments. Furthermore, if
+segments are smaller than the threshold, these extended segments will be pruned and
+becometheoriginalsegmentpatternsinthebeginning.Ontheotherhand,ifthesegments
+are larger than the threshold, theseextendedsegmentswillbekeptand its repeatwillbe
+checkedtogetherwithotherprunedsegments.
+
+
+Figure22.Branch?and?boundalgorithm
+
+The pseudo code of branch?and?bound algorithm is described in table 13. There is one
+branch?and?boundexampleshown in figure23,where the initial3pointsegment is1?2?3,
+andthe lengthoftherawdatapoints isfrom1to7. Inthisexample,afterthethreetimes
+iterationswasoperated,thelongestsegmentspatternis1?2?3?4?6.Furthermore,wecanfind
+thattheprunedsegmentpatternsarekeptforbranchinginthenextterm,suchasthe1?2?3
+initeration1,andboththe1?2?3and1?2?3?4initeration2.Afterbranching,thelikelihoodof
+eachextendedorprunedsegmentspatternwillbere?calculated,andtherankofallpatterns
+will be re?sorted; therefore, the branched segments pattern this timemay have a lower
+likelihoodthenexttime.Bycontrast,theprunedsegmentspatternthistimemayberevived
+thenexttime,suchasthe1?2?3?5initeration2.
+
+
+
+
+
+
+ 35
+Table13.Pseudocodeofbranch?and?bound
+? Setdefaultspanvalue=1
+? Fori=1tothenumberofinputsegmentspatterns
+– Currentbranchedsegmentspatterns(span)=inputsegmentspatterns(i)
+– Ifthevalueoftheendnodeofcurrentbranchedsegmentspatterns(span)==
+thevalueoftheendnodeofrawdatapoints
+? Cubicsplineinterpolation
+? Measurelikelihood
+? span=span+1
+– Else
+? Forj=thevalueoftheendnodeofcurrentbranchedsegments
+patterns(span)+1tothevalueoftheendnodeofrawdatapoints
+? Thenextnodeofcurrentbranchedsegmentspatterns(span)=j
+? Cubicsplineinterpolation
+? Measurelikelihood
+? span=span+1
+? ENDFor
+– ENDIf
+? EndFor
+? Threshold=thebest1%ofthenormalizedlikelihoodofallbranchedsegments
+patterns
+? Fori=1tothenumberofbranchedsegmentspatterns
+– Ifthelikelihoodofbranchedsegmentspatterns(i)<threshold
+? thevalueofMaximum(branchedsegmentspatterns(i))=0
+– ENDIf
+? ENDFor
+? Checkrepeat
+
+ 36
+
+Figure23.Branch?and?boundexample
+
+ 37
+3.5Clustering
+
+Amodelbasedbranch?and?boundalgorithmhelpstoselectandconstructthebesttrajectory
+setswithoutexhaustivesearch;however,itcannotrecognizewhichtrajectorybelongstothe
+samebatand thenumberof trajectoryclusters.Bifurcationchecking isamethod thatcan
+helptodefinetherelationshipbetweentrajectories–i.e.identifywhichtrajectorybelongsto
+whichtrajectorycluster.
+
+Considering a parameter?dependent nonlinear system utilized in our application, the
+equationofthegeneralformisdescribedinthefollowing:
+
+0?),( ?wf 
+
+wherew?R3representstoX,YandZcoordinates,and??R1representsthephysicalfactor?
+time,f:R3+1?R3andf issufficientlysmooth(KanzawaandOishi,1999). Ifthenumberof
+solutions(w,?)off(w,?)=0variedwithrespectto?,wecalledthisfunctionf(w,?)hasthe
+phenomenonofbifurcation,andthepoint(w0,?0)isabifurcationpointorsingularpointas
+pointsnearf(w0,?0)havebifurcationphenomena.Therigorousdefinitionofthebifurcation
+pointisthatanyneighbourofthepoint(w0,?0)onthepathofsolutionsoff(w0,?0)=0isa
+solutionbutnotlyingonthepathofsolutionsoff(w0,?0)=0(Crandall,1971).Forcalculating
+the bifurcation point in this project,we simplify the numerical computation of nonlinear
+equationsofeachtrajectorybymeasuringtherelationshipofthetrajectories’intersect.
+
+Iftwobats'trajectoriessharethesamebifurcationpoint,wecanconcludethattheyare in
+the same trajectory cluster as shown in figure 24where point 9 and 16 (red circles) are
+bifurcationpointsofBat1andBat1';additionally, the trajectoriesofBat1andBat1'are
+classifiedintothesametrajectorycluster.Therefore,thedistancebetweentrajectoryclusters
+willbederived from thenumberofbifurcationpoints.The representationofclickposition
+points of a trajectory is a series of 1's and 0'swhich relates to a list of raw data points'
+indexesinchronologicalorder,andcanbedefinedasbinaryvariables.Ifwewanttomeasure
+thenumberofbifurcationpoints,thesimilarityofbinaryvariablescanbecalculated,andthe
+Jaccardsimilaritycoefficient is themostwidelyusedmethod (CheethamandHazel,1969).
+Jaccardsimilaritycoefficientmaybeexpressedinseveralways,andacommonapproachisto
+writeitasfollows(Urbani,1980):
+
+ 38
+CBA
+CJ ??? 
+,where
+A=thenumberofclickpositionpointsinwhichonlytrajectoryaispresent.
+B=thenumberofclickpositionpointsinwhichonlytrajectorybispresent.
+C=thenumberofclickpositionpointsinwhichbothtrajectoriesaandbarepresent.
+Therangeofthecoefficientsarebetween0whichisincompatiblecompletelybetweentwo
+trajectories,andthenumberofbifurcationpoints iszero,and1which twotrajectoriesare
+associatedwith totallyand thenumberofbifurcationpoints is themaximum.Bycontrast,
+theJaccarddistancecalculatesthedissimilaritybetweentwotrajectoriesandisequaltothe
+substrateJaccardsimilaritycoefficientby1.ThereisoneJaccarddistanceexampledescribed
+infigure24andtable14.
+
+
+Figure24.Bifurcationpointsandtrajectoryclusters
+
+Table14.Contingencytableoftrajectoriesinfigure24
+Data
+Point
+Index
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+Bat1 0 1 0 0 1 0 0 0 1 0 0 0 0 0 0 1 0 1
+Bat1' 0 0 0 0 0 0 0 0 1 0 0 1 0 0 0 1 0 0
+Bat2 0 0 0 1 0 0 1 1 0 0 1 0 0 1 1 0 0 0
+
+TheJaccarddistancebetweenBat1,Bat1'andBat2arecalculatedasfollowing:
+1
+056
+56
+CBA
+BAJ?11)Bat2,d(Bat
+1
+063
+63
+CBA
+BAJ?12)Bat,1'd(Bat
+7140
+214
+14
+CBA
+BAJ1)1'Bat1,d(Bat
+???
+????
+???
+???
+????
+???
+???
+????
+???? .
+
+Therefore,Bat1andBat1'areconcludedasbeinginthesametrajectorycluster,andBat2is
+includedinanothertrajectorycluster.
+ 39
+
+Ontheotherhand,thenumberofbats(equaltothenumberoftrajectoryclusters)recorded
+ineachrawdatafile isunknown;therefore,thehierarchicalclusteringmethod ischosen in
+our clustering algorithm. After hierarchical clustering, the longest path selection is
+implemented;ifthereismorethanonelongestpathsinonetrajectorycluster,thepathwith
+higherlikelihoodwillbechosen,asshowninfigure25.
+
+
+Figure25.Clusteringalgorithm
+
+
+3.5.1AverageLinkageAgglomerativeClustering
+
+Anaveragelinkageagglomerativeclusteringmethodisutilizedinthisproject.Agglomerative
+clusteringmethodismorecommon,muchmoreintuitiveandclearinthedesignphaseinthe
+beginning, and has an easier calculation between levels; however, when comparing the
+numberofourtargetclusterswithourclusteringsamples,adivisiveclusteringmethodbrings
+amoreefficientcomputationalperformancewithoutexhaustedrecursion(Dudaetal.,2001).
+Ontheotherhand,anaverage?linkagemethodisindeedabettermethodofcalculatingthe
+distance between groups in this project, as described in the following equation, after
+comparing the other two distance measurement methods (single?linkage and
+complete?linkage).
+
+b)J(a,1)C,d(C
+)C,d(C
+nn
+1)C,d(C
+ba
+CbCa
+ba
+CC
+ji
+jiji
+??
+? ?
+?? ,
+
+
+whereCiandCjaretwotrajectoryclusters,nrepresentsthenumberoftrajectoryclustering
+samples,andJ(a,b)representstheJaccarddistancebetweentrajectoryaandtrajectorybin
+CiandCjrespectively.
+
+ 40
+Figure26presentsanexampleoftheresultofouraveragelinkageagglomerativeclustering
+(Case:01L471).Inthiscase,therearethreeindividualtrajectoryclustersclassifiedintheend.
+Furthermore,wecanfindthatthedistributionofeachclusterbranchissobalancedthatitis
+acharacteristicoftheaverage?linkagemethod.
+1415 1  9  5202425191221162327 61310281822 71126 8173029 3  2  4
+0.86
+0.88
+0.9
+0.92
+0.94
+0.96
+0.98
+1
+
+Figure26.Dendrogramofagglomerativeclustering(Case:01L471)
+
+
+3.5.2AutomaticMinimumThresholdSelection
+
+A hierarchical clustering method does not need to feed the number of clusters in the
+beginningasapartitioningclusteringmethodwould,butratheritneedstogiveathreshold,
+andanendcondition to terminate the recursion;Figure27describespseudocodesof the
+major steps in agglomerative clustering and the threshold is that the current number of
+clusters(c^ )isequaltothetargetclusternumber(c).
+
+
+Figure27.Majorstepsinagglomerativeclustering
+Source:Dudaetal.,2001.
+
+However,thenumberoftrajectoryclusters ineachrawdatapointsfile isdifferent,andwe
+ 41
+cannot estimate the clustering result of each file manually. Therefore, one minimum
+thresholdselectionmethodusingbifurcationcheckingfordeterminingtheendconditionof
+hierarchicalclusteringisproposedinthisproject,asshowninFigure28.
+
+
+Figure28.Hierarchicalclusteringandminimumthresholdselectionmethod
+
+In the beginning, the default value of "Threshold" is set to 1, and the values of both
+"LastThreshold_UP" and "LastThreshold_DOWN" are set to 0. After every hierarchical
+clustering,abifurcationmeasurementwillbe implementedand thenumberofbifurcation
+pointswillbecomparedwith0.Ifthenumberofbifurcationpointsiszero,thealgorithmwill
+enter "LOOP?1" which the end condition of the clustering "Threshold" will continue to
+decrease0.05each timeuntil thenumberofbifurcationpoints is larger thanzero.On the
+otherhand,ifthenumberofbifurcationpointsisnotzero,thealgorithmwillenter"LOOP?2"
+atwhichtheendconditionoftheclustering"Threshold"willcontinuetoincrease0.001each
+timeuntilthenumberofbifurcationpointsequalstozero,anditentersLOOP?1again.Asthe
+currentThresholdislargerthantheoneinLOOP?2orthecurrentThresholdinLOOP?1isless
+thanthelasttermThresholdinLOOP?1named"LastThreshold_DOWN",thisiterationwillbe
+terminatedandthevalueoflasttermThresholdinLOOP?2,named"LastThreshold_DOWN",
+willbeoutputtobethefinalendconditionofourhierarchicalclustering.
+
+Figure29presentsanexampleoftheresultofourminimumthresholdselectionmethod in
+agglomerativeclustering(Case:01L471).Inthiscase,thereisatotal50timesofiterationin
+thisthresholdselectionalgorithm; from3timesof iteration to29timesare inLOOP?2and
+othersare inLOOP?1.TheLastThreshold_DOWN is0.9, theLastThreshold_UP is0.947and
+thecurrentThresholdis0.899.AsthecurrentThresholdlevel(0.899)islessthanthelevelof
+ 42
+LastThreshold_DOWN (0.9), the value of LastThreshold_UP (0.947) will be our final end
+conditionofclustering.
+
+0 10 20 30 40 50
+0.88
+0.9
+0.92
+0.94
+0.96
+0.98
+1
+Loop Times
+Th
+re
+sh
+ol
+d
+
+Figure29.Resultoftheminimumthresholdselectionmethod(Case:01L471)
+
+Thismethodhelpsus find thebest threshold thatguarantees that inclustering the largest
+number of trajectory clusterswill be implemented, and that no bifurcation pointwill be
+sharedbetweeneachcluster.Figure30demonstratesthat0.947isthebestthresholdlevelin
+case01L471.Incase01L471,therearethreetrajectoriesthatwillbereconstructed.
+
+1415 1  9  5202425191221162327 61310281822 71126 8173029 3  2  4
+0.86
+0.88
+0.9
+0.92
+0.94
+0.96
+0.98
+1
+
+Figure30.Dendrogramofagglomerativeclusteringwiththreshold0.947(Case:01L471)
+
+
+
+0.947
+ 43
+3.6AssessmentandPreliminaryresults
+
+Inthissectionthreeassessmentmethodsandtheirassociatedresultswillbedescribed.
+
+3.6.1AssessmentMethod
+
+Reconstructedtrajectorieswillbeassessedbythefollowingthreefactors:
+
+? Theratio(Rtraj)ofthenumberoftrajectoriesreconstructedbythisalgorithmfromthe
+FLGfilethatare inthesametrajectorygroup (nreconstructed_traj?FLG_traj)tothenumberof
+trajectoriesfromFLGfile(nFLG_traj).Ifthenumberofconcurrentpointsoftrajectoriesis
+more thanor equal toone, theywillbelong to the same trajectory group. Inother
+words,asaoneclickpointlyingonthecurveoftrajectoryfromFLGfileisalsolyingon
+anothertrajectoryreconstructedbythisalgorithm,wecansaythetrajectoryfromthe
+FLGfile isclusteredsuccessfullyandRtrajwill increase.TheformulaofRtraj isshownby
+thefollowing. 
+
+FLG_traj
+FLG_trajted_trajreconstruc
+traj n
+n
+R ??
+
+? The ratio (Rclick) of the number of click points which are both recognized by this
+algorithmand from theFLG file (nreconstructed_click?FLG_click) to thenumberofclickpoints
+from the FLG file (nFLG_click). This factor reveals the complete performance of this
+algorithm,especiallyforbatflightmodelling.TheformulaofRclickis:
+
+FLG_click
+FLG_clickted_clickreconstruc
+click n
+n
+R ?? 
+
+? The unbiased average deviation (davg_dev) ? the deviation of each reconstructed
+trajectorycurvefromitscorrespondingtrajectorycurvefromtheFLGfile,isdescribed
+in Figure 31. This factor also denotes a complete performance of this algorithm
+especiallyfortheinterpolationorapproximationmethod.
+
+
+Figure31.Unbiasedaveragedeviation
+
+ 44
+In figure31,d represents thedistancebetweenone clickpointorone interpolatedpoint
+lyingonthecurveoftrajectoryreconstructedbythisalgorithmandtheclickpointfromthe
+FLG filewith the smallest timingdifference; inotherwords,alldistancesbetween the3D
+points of the nearest temporal stamps on corresponding trajectories will be measured,
+summedandaveraged.Thisisshownhere:
+
+??
+?
+?
+i
+n
+1j
+j
+avg_dev n
+d
+d
+
+whereirepresentstheindexesofoverlappedsegmentswhichshareboththebeginningand
+endclickpoints;nequals to thenumberof time?domain linear interpolationpointswithin
+eachsegmentofthetrajectoryfromtheFLGfile.
+
+After the three assessment factors defined above are applied, two further types of
+assessmentwillbeimplemented–theFLG?trajectorytestpatternassessmentwhichchooses
+well?establishedmanually?reconstructedtrajectorypatternstobethe inputpatternsofthis
+algorithm;andrealrawdatareconstructionassessment,asshown infigure32.Theformer
+assessmentusestestpatternswhicharesocleanwithoutanynoiseandoutliers;therefore,
+ideallywe canundertake the simplestoperationprocess, and get thebest reconstructing
+result;furthermore,unitlevelperformancecanbemonitoredandevaluatedindetail.Onthe
+otherhand,thelatterassessmentinvolvestheinputrawdatabeingmixedwithlotsofnoise
+and outliers; therefore, the ability of filtering, segment selection and the speed of data
+processing is themajorobservationpoint in thiskindof realcaseoperation.Furthermore,
+theresultsoftherealcaseassessmentandreconstructedtrajectorycurveswillbereviewed
+and assessed by biologists with a thorough consideration. After all, the target of this
+algorithmistoprovidebothanefficientandobjectivemethodofdataanalysisforbiologists.
+
+
+Figure32.Assessmentmethods
+
+ 45
+3.6.2PreliminaryResults
+
+Inthissession,FLG?trajectorytestpatternsareutilizedtoassessthealgorithm'sfunctionand
+performance.Approximately50FLGfilesareselectedrandomlywhichincludebothonebat
+trajectoryandmultiplebattrajectories.Resultsareshowninfigure33,36and39.
+
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40
+Ra
+tio
+NumberofPoints
+Bat'sTrajectory=1
+Ratioof
+Numberof
+Paths
+Ratioof
+Numberof
+Points
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40 50 60
+Ra
+tio
+NumberofPoints
+Bat'sTrajectories>=2
+Ratioof
+Numberof
+Paths
+Ratioof
+Numberof
+Points
+
+Figure33.(a)RtrajandRclicktonumberofpointsfromone?trajectoryfiles;(b)RtrajandRclickto
+numberofpointsfrommultiple?trajectoriesfiles
+
+In figure33 (a), thereare three single trajectories are recognized to threedouble section
+trajectories(Rtrajis200%);eachtrajectoryissegmentedintotwoshorttrajectoriesasshown
+in figure34. In figure34, thedash line is thehand?reconstructed trajectory, and the two
+colourlinesaresegmentedtrajectoriesreconstructedbyouralgorithm.Inouralgorithm,the
+top1%possibletrajectoriesarepermittedtokeepbranching;however,thedatapointsinthe
+FLGfilesaremuchsimplifiedandefficient.Therefore,sometrajectory'ssegmentsubsets in
+thistestbenchmayalwaysbeprunedlikecase30L382.
+
+810
+5
+10
+15
+20
+3.54
+4.5
+X(m)
+1
+2
+Y(m)
+Z(
+m
+)
+
+Figure34.TrajectoryreconstructionfromFLGfile30L382
+
+On the other hand, in figure 33 (b), six trajectories are missing compared with the
+hand?reconstructed trajectories (Rtraj is less than 100%); these trajectories are grouped
+(b)(a)
+ 46
+withother trajectories and then filteredoutby the longestpath selectionmethod inour
+algorithm. Figure 35 reveals the phenomenon inwhich there is a difficulty in thoroughly
+reconstructingtightlycrisscrossingtrajectoriesinthisproject.
+
+-2 0 2 4
+0
+10
+20
+5
+10
+X(m)
+1
+Y(m)
+Z(
+m
+)
+
+Figure35.TrajectoryreconstructionfromFLGfile30L394
+
+Besidesabovephenomena,wecanalsonoticethatRclickdecreasesgraduallyasthenumber
+ofdatapoints intheonetrajectoryfile increases.Thereason isthat inthecomputationof
+suchsmallsamples,therateofutilizationofdatapoints inthemoreclusters'case isbetter
+thanthatinthefewerclusters'case;inotherwords,lotsofcandidatesegmentsinthefewer
+clusters'casewillbescreenedout. 
+
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+0 20 40
+Er
+ro
+r(m
+)
+NumberofPoints
+Bat'sTrajectory=1
+AVGDistance
+Error(m/pt)
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+0 10 20 30 40 50 60
+Er
+ro
+r(m
+)
+NumberofPoints
+Bat'sTrajectories>=2
+AVGDistance
+Error(m/pt)
+
+Figure36.(a)davg_devtothenumberofpointsfromone?trajectoryfiles;(b)davg_devtothe
+numberofpointsfrommultiple?trajectoriesfiles
+
+In Figure 36, most curves fit hand?reconstructed trajectories well, of which their
+point?to?pointdistancedeviationsare less than1meter.Nevertheless, thereare twocases
+that gain our attention ? case 01L453 and case 01M071 as shown in Figure 37 and 38
+respectively.Becausethereisnogroundtruthcanjudgetheresults,expertsinthebiological
+fieldcanhelpustocheckthem.Afterall,findingoutthedifferencefromsubjectivemanual
+observationisanotherobjectiveofthisproject,besidessavingmanpower.
+(b)(a)
+ 47
+24
+-5
+0
+5
+10
+15
+20
+5.56
+6.57
+7.5
+Y(m)
+1
+X(m)
+Z(
+m
+)
+
+Figure37.TrajectoryreconstructionfromFLGfile01L453
+
+0
+5
+10 0
+10
+204
+6
+1
+Y(m)
+2
+X(m)
+Z(
+m
+)
+
+Figure38.TrajectoryreconstructionfromFLGfile01M071
+
+1.0E?01
+1.0E+01
+1.0E+03
+1.0E+05
+0 10 20 30 40
+Ti
+m
+e(s
+ec
+)
+NumberofPoints
+Bat'sTrajectory=1
+TotalTime
+(sec)
+1.0E?01
+1.0E+01
+1.0E+03
+1.0E+05
+0 10 20 30 40 50 60
+Ti
+m
+e(s
+ec
+)
+NumberofPoints
+Bat'sTrajectories>=2
+TotalTime
+(sec)
+
+Figure39.(a)Computationaltimetonumberofpointsfromone?trajectoryfiles;(b)
+computationaltimetonumberofpointsfrommultiple?trajectoriesfiles
+
+Figure39 reveals themostdifficult issueofouralgorithm– the largecomputational time.
+Reconstructing approximately 50 data points takes about 100,000 seconds. It will be a
+significantproblemwhenimplementingrealrawdatareconstruction.Therefore,speedingup
+computationaltimeisanotherimportanttaskofthisproject,andwillbedescribedindetail
+inthenextchapter.
+(b)(a)
+ 48
+4.Optimization
+
+Twomethodologiesareproposedhereforsolvingthecrucialproblemofthelongoperation
+time.Anadaptive interpolationpoints selectionmethod isproposed toachievebothhigh
+speed and high resolution interpolation calculation in curvature measurement; an
+importancesamplingmethodisutilizedbylookingatthe3pointsegmentstabletoachieve
+themostefficientbranching.
+
+4.1AdaptiveInterpolationPointsSelection
+
+Cubicspline interpolation isutilized in thisprojecttoapproximatetheoriginal flightcurve.
+However, the shape of reconstructed curve is not always regular and fixed, but varied
+according to certain parameters ? the ratio of any adjacent segments' lengths, the angle
+between any adjacent segments and the number of cubic spline interpolation points, as
+showninfigure40and41.
+
+-101-1 0 1 2 3
+0
+1
+2
+ 
+1:31:1
+ 
+Z(
+m
+)
+-101-1 0 1 2 3
+0
+1
+2
+ 
+1:3
+ 
+Z(
+m
+)
+Cubic spline curve (PL ratio = 1:1)
+Path length (PL) ratio = 1:1
+Cubic spline curve (PL ratio = 1:3)  
+Path length (PL) ratio = 1:3
+Cubic spline interpolation points = 0
+Path length (PL) ratio = 1:3
+Cubic spline interpolation points = 2
+Path length (PL) ratio = 1:3
+Cubic spline interpolation points = 4
+Path length (PL) ratio = 1:3
+
+Figure40.Influencesofcubicsplinecurvebypathlengthratioofadjacentsegmentsandthe
+numberofinterpolationpoints(angleis90degree)
+
+Infigure40,thefiguredescribestheshapeofcubicsplinecurvewhichisdeterminedbythe
+differentratiosofpath lengthsoftheadjacentsegments. Iftheratio issmall,theshapeof
+splinecurve ismild;on theotherhand, if the ratio is large, theshapecurvesmarkedly. In
+contrast,inthebelowfigure,theshapeofthecubicsplinecurveisdeterminedbydifferent
+numbers of interpolation points; themore interpolation points, the smoother andmore
+accuratethesplinecurve. 
+
+ 49
+Figure41describestheshapeofcubicsplinecurvewhich isdeterminedbyboththeangle
+andtheratioofthepathlengthsofadjacentsegments.Iftheangleisblunt,theshapeofthe
+splinecurveisstraighter;ontheotherhand,iftheratioissharp,theshapecurvesmarkedly.
+
+-101 0 2 4
+-1
+0
+1
+2
+3  
+1:1
+1:1
+1:1
+ 
+Z(
+m
+)
+-101 0 2 4
+-1
+0
+1
+2
+3  
+1:3
+1:3
+1:3
+ 
+Z(
+m
+)
+Cubic spline curve (PL ratio = 1:1; angle = 45 degree)
+Path length (PL) ratio = 1:1; angle = 45 degree
+Cubic spline curve (PL ratio = 1:1; angle = 90 degree)
+Path length (PL) ratio = 1:1; angle = 90 degree
+Cubic spline curve (PL ratio = 1:1; angle = 135 degree)
+Path length (PL) ratio = 1:1; angle = 135 degree
+Cubic spline curve (PL ratio = 1:3; angle = 45 degree)
+Path length (PL) ratio = 1:3; angle = 45 degree
+Cubic spline curve (PL ratio = 1:3; angle = 90 degree)
+Path length (PL) ratio = 1:3; angle = 90 degree
+Cubic spline curve (PL ratio = 1:3; angle = 135 degree)
+Path length (PL) ratio = 1:3; angle = 135 degree
+
+Figure41.Influencesofcubicsplinecurvebyangleandpathlengthratioofadjacent
+segments(thenumberofinterpolationpointsis100)
+
+Theseinterpolatedflightcurvesaffecttheresultsofthebatflightparametersmeasurement,
+especially forpath lengthandcurvature; the formeralso influences thevelocity indirectly.
+Therefore,how tochoose the idealnumberof interpolationpointsbecomesan important
+topic; after all, the number of interpolation points is the only parameter which can be
+controlledbecausethepath lengthandangleofadjacentsegmentsarerelativetotheclick
+positions. 
+
+Weknowthata largernumberof interpolationpointsprovidesmoreaccuracy,but ittakes
+morecomputationaltime.Therefore,anadaptive interpolationpointsselectionmechanism
+is the ideal solutionwith respect to the blind selection of a large number of points. The
+adaptive interpolationpoints selectionmethod choosesa sufficientnumberofpointsand
+keeps itsperformancesimilar toselecta largernumberofpoints,andadditionallysavesa
+greatdealoftime.
+
+Figure 42 describes the influences on path length and curvature by the number of
+interpolationpoints,wherethehorizontalaxisrepresentsthenumberofinterpolationpoints
+andtheverticalaxisrepresentsthe influencesonpath length(top)andcurvature(bottom)
+by a different number of interpolation points compared with the influences when the
+number of interpolation points equals 1000; besides, the different ratio of lengths of
+adjacentsegmentsalsobringsdifferentresults.Wecanfindthattheaccuracyofcurvature
+ 50
+measurement is about 60% of 1000 interpolation points chosen, if the ratio of adjacent
+segments' lengths is 1:20 and we choose 20 interpolation points. Also, the accuracy of
+curvaturemeasurement is about 80% of 1000 interpolation points chosen if the ratio of
+adjacentsegments'lengthsis1:40andwechoose60interpolationpoints.
+
+0 20 40 60 80 100 120 140 160 180 200
+0.996
+0.998
+1
+ 
+ 
+0 20 40 60 80 100 120 140 160 180 200
+0.5
+0.6
+0.7
+0.8
+0.9
+Interpolation Points
+Th
+e 
+R
+at
+io
+ o
+f P
+at
+h 
+D
+is
+ta
+nc
+e 
+an
+d 
+C
+ur
+va
+tu
+re
+w
+ith
+ d
+iff
+. I
+nt
+er
+p.
+ P
+oi
+nt
+s 
+to
+ 1
+00
+0 
+In
+te
+rp
+. P
+oi
+nt
+s
+ 
+ 
+Adjacent segments length ratio 1:1
+Adjacent segments length ratio 1:20
+Adjacent segments length ratio 1:40
+Adjacent segments length ratio 1:60
+Adjacent segments length ratio 1:80
+Adjacent segments length ratio 1:100
+Adjacent segments length ratio 1:1
+Adjacent segments length ratio 1:20
+Adjacent segments length ratio 1:40
+Adjacent segments length ratio 1:60
+Adjacent segments length ratio 1:80
+Adjacent segments length ratio 1:100
+
+Figure42.Influencesofpathdistanceandcurvaturebythenumberofinterpolationpoints
+
+Becausepathlengthisinfluencedbytheadjacentsegments'lengthratioandangle,andthe
+influencesofcurvaturebyanglearenotobvious,thisadaptiveselectionmechanismwillonly
+be utilized in curvaturemeasurementwhere the number of interpolation pointswill be
+selected by monitoring the adjacent segments’ length; in other flight parameters’
+measurement,thenumberofinterpolationpointswillbesetto10,asshowninfigure43. 
+
+
+Figure43.Thefirstpartofabranch?and?boundalgorithmusinganadaptiveinterpolation
+pointsselectionmethod
+
+ 51
+ThepseudocodeisdescribedinTable15.
+
+Table15.Pseudocodeofanadaptiveinterpolationpointsselectionmethod
+? LoadX/Y/Zpoints:X,YandZ
+? Fori=2tolengthofX/Y/Zpoints?1
+– Measurelengthratioofadjacentsegments: 
+– A=[(X(i+1)?X(i))(Y(i+1)?Y(i))(Z(i+1)?Z(i))],B=[(X(i?1)?X(i))(Y(i?1)?Y(i))(Z(i?1)?Z(i))]
+– Calculateratio:R(i?1)=norm(A)/norm(B)
+? EndFor
+? If[max(R)<=5]OR[(min(R)<=1/5]
+– n=10
+? Elseif[max(R)<=10&max(R)>5]OR[min(R)<=1/10&min(R)>1/5]
+– n=20
+? Elseif[max(R)<=20&max(R)>10]OR[min(R)<=1/20&min(R)>1/10]
+– n=35
+? Elseif[(max(R)<=30&max(R)>20)]OR[(min(R)<=1/30&min(R)>1/20)]
+– n=50
+? Elseif[(max(R)<=40&max(R)>30)]OR[(min(R)<=1/40&min(R)>1/30)]
+– n=65
+? Elseif[(max(R)<=50&max(R)>40)]OR[(min(R)<=1/50&min(R)>1/40)]
+– n=80
+? Elseif[(max(R)<=60&max(R)>50)]OR[(min(R)<=1/60&min(R)>1/50)]
+– n=95
+? Else
+– n=110(Bestinterpolationresolution)
+? EndIf
+
+In case 30L474, there are approximately 141,700 segments calculated for curvature
+measurement in the process of trajectory reconstruction; however, there are only 4,448
+segmentsofwhichtheirratiosofadjacentsegments' lengthsare largerthan5,asshown in
+figure44. Itmeansapproximately70%of thecalculation time forcurvaturemeasurement
+canbesavedbyusingthisselectionmethod(bestinterpolationresolution=110).
+
+1
+10
+100
+1,000
+10,000
+100,000
+1,000,000
+1:
+<5
+1:
+5?
+10
+1:
+10
+?20
+1:
+20
+?30
+1:
+30
+?40
+1:
+40
+?50
+1:
+50
+?60
+1:
+>6
+0
+Fr
+qu
+en
+cy
+AdjacentSegmentsLengthRatio
+Ex:30L474
+
+Figure44.Accumulatedadjacentsegmentslengthratio(Case:30L474)
+
+ 52
+4.2ImportanceSampling
+
+Intheprocessoftrajectoryreconstruction,theprocessofbranch?and?boundtakesmostof
+thecomputationaltime(approximatelyover95%)andbatflightparameters’measurementis
+inthemajority.Therefore,efficientbranchingisanotherimportanttaskofoptimization.
+
+Inouralgorithm,each3pointsegmenthasalreadybeenmeasuredandfilteredbychecking
+their likelihoods with the bat flight models at the start of the process. Some 3 point
+segments are selected for branch?and?bound, and others are deleted. Those remaining 3
+pointsegmentsarecalledtrajectorycandidates,whichmeansthattheyareregardedasmore
+important than theothers andhave ahigherprobabilityofbeing apartof the complete
+trajectory.Therefore,areliablewaytodecreasethenumberofbranchingistodeletethose
+new extended segments that are not listed on the candidates’ table ? a list of those
+remaining3pointsegments. Itmeansthateachnewbranchedtrajectory ineachrecursion
+runwillbegivenalikelihoodweighting?0'sor1's?andthislikelihoodisnotcalculatedwith
+itsneighbours,despite itsparent samples– the3point segments table.Of course, a few
+goodbranched trajectoriesmaybeover killed for this kindof efficiency improvement, as
+showninFigure45.
+
+
+Figure45.Trajectorycandidates,newbranchedtrajectorymodelsandoverkilledregion
+
+TheshapeofthecubicsplinesegmentcurvePk(t)isdeterminedbythepositionandtangent
+vectorsofboththebeginningpoint,PkandPk',andtheendpoint,Pk+1andPk+1'asshownin
+figure46.
+
+Figure46.Multiplepiecewisecubicsplinesegmentscurve
+
+ 53
+However,fordeterminingthetangentfactorofthe inner jointPk+1'betweenanytwocubic
+splinesegmentsPkandPk+1,thefollowingequationneedstobesolved(RogersandAdams,
+1990): 
+
+? ?)()()( k1k2k21k2k1k2
+2k1k
+2k1k1k2k1kk2k PPtPPttt
+3P'tP'tt2P't ?????? ?????
+??
+?????? 
+
+Itmeans that the shape of the former segment curve Pk(t) between Pk and Pk+1will be
+affected by the position of the next point Pk+2. Therefore, the likelihood of any 3 point
+segment listedon the trajectory candidates tablewillnotbe totally the sameasanynew
+extended3pointsegmentwithinthenewbranchedtrajectoriesbecausethetangentvectors
+in the former segment arenever the same as their corresponding tangent vectors in the
+lattersegment.Fortunately,fromcomputergraphicstheory,weknowthattheinfluencesof
+the beginning and stop tangent vectors aremuch less important than their positions as
+shown inFigure47,wheretheblendingfunctionofthecubicsplinesegmentcurvePk(t) is
+describedasfollows(RogersandAdams,1990):
+? ? ? ?
+??
+??
+?
+?
+??
+??
+?
+?
+?
+?
+?
+1k
+k
+1k
+k
+4321k
+P'
+P'
+P
+P
+tFtFtFtFtP )()()()( 
+0 0.2 0.4 0.6 0.8 1-0.4
+-0.2
+0
+0.2
+0.4
+0.6
+0.8
+1
+1.2
+C
+ub
+ic
+ S
+pl
+in
+e
+Bl
+en
+di
+ng
+ o
+r W
+ei
+gh
+tin
+g 
+Fu
+nc
+tio
+n
+F1(t) F2(t)
+F3(t)
+F4(t)
+Blending Parameter t
+-0.4
+-0.2
+0
+0.2
+0.4
+0.6
+0.8
+1
+1.2
+
+Figure47.Cubicsplineblendingorweightingfunction
+
+AnypointlyingonthecurvePk(t)isaweightedsumofabovefourfactors.Infigure47,ifF1(0)
+=1andF2(0)=F3(0)=F4(0)=0,thiscurvepassesthroughthepointP1.Similarly,ifF1(1)=0,
+F2(1)=1andF3(1)=F4(1)=0,thiscurvepassesthroughthepointP2. 
+
+
+ 54
+4.3Extensionstothebasicframework
+
+An improvedbranch?and?boundalgorithmwithadaptive interpolationpointsselectionand
+importancesampling(look?uptrajectorycandidatestable)methodsisshowninfigure48.
+
+
+Figure48.Branch?and?boundalgorithmusingadaptiveselectionandimportancesampling
+
+Inthissession,FLG?trajectorytestpatternswithmultiplebat'strajectoriesfromFLGfilesare
+utilized toassess theoptimizedalgorithm's functionandperformance.Comparison results
+between theoriginalalgorithmand theoptimizedalgorithmon theassessment factorsof
+Rtraj,Rclick,davg_devandthetotalcomputationaltimearedescribedonfigures49to52.
+
+Infigure49,mostresultsofRtrajbetweenthetwoalgorithmsaresimilar,exceptcase01L471
+(51points),and thiswillbediscussedbelow.Additionally, theaverageRtrajon theoriginal
+algorithmis85%;ontheoptimizedalgorithmitis91%.
+
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40 50 60
+Ra
+tio
+(%
+)
+NumberofPoints
+Bat'sTrajectory>=2
+Ratioof
+Numberof
+Paths(%)
+OptimizedRatio
+ofNumberof
+Paths(%)
+
+Figure49.Rtrajtothenumberofpointsfrommultiple?trajectoriesfiles
+
+ 55
+Figure 50 shows trajectories reconstructed by the original and optimized algorithms
+respectively incase01L471wherethedashcurvesarehand?reconstructedtrajectoriesand
+the coloured curves are trajectories reconstructed by the study’s algorithms. Some
+trajectoriesinfigure50(a)aresegmentedintoseveralsegmentsafteroptimizationasshown
+infigure50(b)becauseoftheeffectofthe importancesamplingmethodandbecausethe
+data points in the FLG?trajectory test pattern are simplified. In contrast, some missing
+trajectoriesshowninfigure50(a)aresuccessfullyreconstructedafteroptimizationasshown
+infigure50(b)becauseoftheeffectoftheadaptiveinterpolationpointsselectionmethod.
+
+0
+5
+10
+15
+0
+10
+20
+78
+910
+11
+X(m)
+2
+1
+Y(m)
+3
+0
+5
+10
+15
+0
+10
+20
+78
+910
+11
+X(m)
+2
+5
+1
+4
+Y(m)
+3
+6
+
+
+Figure50.TrajectoryreconstructionfromFLGfile01L471. 
+(a)originalalgorithm;(b)optimizedalgorithm
+
+In figure 51, the results for the assessment factor Rclick between the two algorithms are
+similar.TheaverageRclickon theoriginalalgorithm is77%;on theoptimizedalgorithm it is
+69%.
+
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40 50 60
+Ra
+tio
+(%
+)
+NumberofPoints
+Bat'sTrajectory>=2
+Ratioof
+Numberof
+Points(%)
+OptimizedRatio
+ofNumberof
+Points(%)
+
+Figure51.Rclicktothenumberofpointsfrommultiple?trajectoriesfiles
+
+(b)(a)
+ 56
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+6.0
+0 10 20 30 40 50 60
+Er
+ro
+r(m
+)
+NumberofPoints
+Bat'sTrajectory>=2
+AVGDistance
+Error(m/pt)
+OptimizedAVG
+DistanceError
+(m/pt)
+
+Figure52.davg_devtonumberofpointsfrommultiple?trajectoriesfiles
+
+Infigure52,themajorityofassessmentresultsfordavg_devbetweenthetwoalgorithmsare
+similar,exceptforcase01M071 (32points) ,andthiswillbediscussedbelow.Theaverage
+davg_devontheoriginalalgorithmis0.27m;ontheoptimizedalgorithmitis0.69m. 
+
+Case 01M071’s value for the assessment factor davg_dev is large, and has been highlighted
+before,asshowninfigure38;weknowthatalargevaluefortheassessmentresultdoesn't
+mean that the trajectory reconstructedbyour algorithm ispoor,but instead reveals that
+thereisalargedifferencebetweenthepredictionsfromthebiologistandthestatisticalbat
+flightmodelsutilizedbyouralgorithm.Furthermore, ifwe review the trajectories incase
+01M071 carefully, we can find that two optimization methods help the trajectory's
+characteristicsmoreaccuratelyreplicatethebat'sbehaviourinfigure53(b);bebetterthan
+Figure53(a),althoughdavg_devfromtheoptimizedalgorithminfigure53(b)islargerthanthe
+originalalgorithminfigure53(a).
+
+0
+5
+10
+0
+10
+20
+4
+6
+X(m)
+2
+Y(m)
+1
+0
+5
+10
+0
+10
+20
+4
+6
+X(m)
+2
+Y(m)
+1
+
+
+Figure53.TrajectoryreconstructionfromFLGfile01M071. 
+(a)originalalgorithm;(b)optimizedalgorithm
+
+(b)(a)
+ 57
+1.0E+00
+1.0E+01
+1.0E+02
+1.0E+03
+1.0E+04
+1.0E+05
+1.0E+06
+0 10 20 30 40 50 60
+Ti
+m
+e(s
+ec
+)
+NumberofPoints
+Bat'sTrajectory>=2
+TotalTime(sec)
+OptimizedTotal
+Time(sec)
+
+Figure54.Computationaltimetothenumberofpointsfrommultiple?trajectoriesfiles
+
+Figure54revealsaconsiderablyimprovedspeedforthecomputationaltimebyutilizingthe
+optimized algorithm. The average speed improvement is about 9 times faster for
+multiple?trajectories files on the FLG?trajectory test pattern assessment. The average
+computational time on the original algorithm it is 20,064.33 seconds; on the optimized
+algorithmitis4,369.81seconds.
+
+On the other hand, for real raw data reconstruction assessment, the comparison of case
+30L474(32datapoints)'scomputationaltimesondifferentbranch?and?boundoptimizations
+isshown infigure55. Ifthenumberof interpolationpoints is100,thespeed improvement
+between the complete branching and the importance sampling is about 2.5 times faster.
+Moreover, the total improvement between the oldest and latest branch?and?bound
+mechanismsisapproximately9timesfaster.Thisspeedimprovementmainlydependsonthe
+numberofdatapoints.
+
+0
+2
+4
+6
+8
+10
+12
+14
+0 50 100 150
+El
+ap
+se
+dT
+im
+e(
+th
+ou
+sa
+nd
+se
+co
+nd
+s)
+InterpolationPoints
+Constant
+Interp.
+Pointsand
+Complete
+Branching
+Constant
+Interp.
+Pointsand
+Importance
+Sampling
+Adaptive
+Interp.
+Pointsand
+Importance
+Sampling
+
+Figure55.Comparisonofbranch?and?boundcomputationaltime(Case30L474)
+
+
+ 58
+5.Results
+
+Optimized algorithmshavebeen evaluatedby real rawdata reconstruction assessment in
+thischapter,asshowninfigures56,57and58.
+
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40 50 60
+Ra
+tio
+NumberofPoints
+Bat'sTrajectory=1
+Ratioof
+Numberof
+Paths
+Ratioof
+Numberof
+Points
+0.0%
+50.0%
+100.0%
+150.0%
+200.0%
+250.0%
+0 10 20 30 40 50 60 70 80 90
+Ra
+tio
+NumberofPoints
+Bat'sTrajectories>=2
+Ratioof
+Numberof
+Paths
+Ratioof
+Numberof
+Points
+
+Figure56.(a)RtrajandRclickratiostothenumberofpointsfromone?trajectoryfiles;(b)Rtraj
+andRclickratiostothenumberofpointsfrommultiple?trajectoriesfiles
+
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+0 20 40 60
+Er
+ro
+r(m
+)
+NumberofPoints
+Bat'sTrajectory=1
+AVGDistance
+Error(m/pt)
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+0 10 20 30 40 50 60 70 80 90
+Er
+ro
+r(m
+)
+NumberofPoints
+Bat'sTrajectories>=2
+AVGDistance
+Error(m/pt)
+
+Figure57.(a)davg_devaveragedistanceerrortothenumberofpointsfromone?trajectoryfiles;
+(b)davg_devaveragedistanceerrortothenumberofpointsfrommultiple?trajectoriesfiles
+
+1.0E?01
+1.0E+01
+1.0E+03
+1.0E+05
+0 20 40 60
+Ti
+m
+e(s
+ec
+)
+NumberofPoints
+Bat'sTrajectory=1
+TotalTime
+(sec)
+1.0E?01
+1.0E+01
+1.0E+03
+1.0E+05
+0 10 20 30 40 50 60 70 80 90
+Ti
+m
+e(s
+ec
+)
+NumberofPoints
+Bat'sTrajectories>=2
+TotalTime
+(sec)
+
+Figure58.(a)Computationaltimetothenumberofpointsfromone?trajectoryfiles;(b)
+computationaltimetothenumberofpointsfrommultiple?trajectoriesfiles
+(b)(a)
+(b)(a)
+(b)(a)
+ 59
+Table16describes thecomparisonofassessmentresultswith thedifferentalgorithmsand
+assessmentmethods.Besides the improvement incomputational time from theoriginal to
+the optimized algorithm as discussed before, with the increased data points and noise
+(echoes and outliers), the system's complexity has generally risen (the average
+computational time per point has risenmore than 60% from 102.62 to 165.19), but the
+resultsof theother twoassessment factors (RtrajandRclick)have remained similar (Rtrajhas
+decreased just 12.26% and Rclick has increased only 6.07%). Furthermore, davg_dev has
+improvedmarkedly (deviationhasdecreased34.78%).Thisprovesthattheperformanceof
+priorflightmodelsadoptedinthebranch?and?boundalgorithmisreliable.
+
+Table16.Comparisonofassessmentresults,algorithms,andassessmentmethods
+
+   Bat=1
+
+
+ Bat>=2
+Averageratio
+(Rtraj)ofthe
+numberof
+trajectories
+(%)
+Averageratio
+(Rclick)ofthe
+numberof
+clickpoints
+(%)
+Average
+unbiased
+average
+deviation
+(davg_dev)
+(m)
+Average
+computational
+timeperpoint
+(second/pt)
+Originalalgorithm
+assessedbyutilizing
+FLG?trajectorytest
+patterns
+   109.38
+
+ 84.62
+   65.64
+
+ 77.02
+
+   0.2
+
+ 0.27
+   32.12
+
+ 481.86
+Optimizedalgorithm
+assessedbyutilizing
+FLG?trajectorytest
+patterns
+
+   N/A
+
+ 91
+
+   N/A
+
+ 69
+
+   N/A
+
+ 0.69
+
+   N/A
+
+ 102.62
+Optimizedalgorithm
+assessedbyutilizing
+realrawdatafiles
+
+   117.24
+
+ 81.06
+
+   65.44
+
+ 73.46
+
+   0.56
+
+ 0.45
+
+   33.93
+
+ 165.19
+
+Furthermore, as discussed before, the data points in the FLG?trajectory test pattern are
+simplified and the segments are reconstructed restrictedly; the usage of importance
+sampling will worsen this phenomenon (Rclick has decreased from 77.02% to 69%).
+Nevertheless, this phenomenon will be much improved in terms of real raw data
+reconstructionassessment(Rclickhasincreasedto73.46%).Therearesomepotentialbatclick
+pointsandsegmentshiddenbynoisesandignoredbythebiologistintheprocessofmanual
+reconstruction. Our model based branch?and bound algorithm utilizing the maximum
+ 60
+likelihoodtheorycanrestorethese,asshowninfigures59and60.However,stillsomeerrors
+ofpredictionmayhappen,asshown in figures61and62,and ithasdecreased therateof
+successoftrajectoryrecognition(Rtrajhasdecreasedfrom91to81.06asshownintable16).
+
+-10123
+0
+5
+10
+6
+8
+Y(m)
+X(m)
+2
+1Z
+(m
+)
+
+Figure59.Path?2isreconstructedsuccessfulbypotentialpointandincreasesRclick?2to100%
+(Case29L441)
+
+-2 0 2 4 6 8
+0
+10
+20
+7
+8
+12
+X(m)
+Y(m)
+Z(
+m
+)
+
+Figure60.Bothpath?1and?2arereconstructedsuccessfulbypotentialpointsandincrease
+Rclick?1and?2to88.24%and85.71%respectively(Case30L492)
+
+Rtraj=100%
+Rclick?1=100%
+davg_dev?1=0.0218m
+Rclick?2=100%
+davg_dev?2=0.0842m
+Totaltime=924.977sec
+Rtraj=100%
+Rclick?1=88.24%
+davg_dev?1=2.5442m
+Rclick?2=85.71%
+davg_dev?2=2.0603m
+Totaltime=169,630sec
+ 61
+-5
+0
+5
+10
+15
+0 5 10 15 20
+78
+910
+11
+X(m)
+1
+Y(m)
+3
+2
+Z(
+m
+)
+
+Figure61.Path?1isapredictionerroranddecreasesRtrajto75%(Case01L471)
+
+456
+0
+5
+10
+4
+5
+6
+7
+1
+X(m)
+2
+Y(m)
+Z(
+m
+)
+
+Figure62.Path?2isapredictionerroranddecreasesRtrajto66.67%(Case29L481)
+
+Using this algorithm, some unexpected trajectories that are hard to predictmanually are
+constructed. With the biologist's help, some unexpected trajectories are judged to be
+accurate,butsomearenot.Theformercanhelpthebiologistgainagreatdealofvalidand
+newresearchmaterial,suchascase29L511and01L571asshowninFigures63and64. 
+
+Rtraj=75%
+Rclick?1=43.75%
+davg_dev?1=0.2087m
+Rclick?2=68.75%
+davg_dev?2=0.4606m
+Rclick?3=72.73%
+davg_dev?3=0.1837m
+Totaltime=13,589sec
+Rtraj=66.67%
+Rclick?1=85.71%
+davg_dev?1=0.0896m
+Rclick?2=120%
+davg_dev?2=0.077m
+Totaltime=1,423.9sec
+ 62
+-2
+0
+2
+4
+6
+051015
+4
+6
+8
+1
+Y(m)
+2
+X(m)
+Z(
+m
+)
+
+Figure63.Path?2isunexpectedandmatchesbatbehaviour(Case29L511)
+
+81012
+0
+10
+20
+5
+10
+X(m)
+1
+2
+Y(m)
+Z(
+m
+)
+
+Figure64.Path?1isunexpectedandmatchesbatbehaviour(Case01L571)
+
+On the other hand, the unreliable trajectories expose the weakness of this algorithm,
+especially for theprior flightmodels. It reveals thatour currentprior flightmodel cannot
+cover all bat flight behaviours and additionally cannot filter out some paths that do not
+matchthebat'sbiologicalbehaviour,suchascases01L531,01M041,29L473and29L421,as
+shown in Figures65 to68 respectively.Basedon abat'sbiologicalbehaviour, some flight
+features canbe added and some canbeweighted;of course, thisnewprior flightmodel
+wouldbemorecomplicatedandmayneedtheresearchertocopewiththecrucialproblem
+oflargecomputationaltimeagain. 
+Finally,therearefourtestrulessuggestedbybiologistanddescribedasfollows:
+A)Howmanyclickpointssupportaturn?Ifthereisonlyoneortwo,itmaybeuntrue.
+B)Howmanyclickpointssupportadirectionchange?Longcurveswithoutmuchsupportare
+Rtraj=50%
+Rclick?1=78.57%
+davg_dev?1=0.1282m
+Rclick?2=120%
+davg_dev?2=0.0912m
+Totaltime=13,161sec
+Rtraj=100%
+Rclick?1=58.33%
+davg_dev?1=0.0779m
+Rclick?2=52.94%
+davg_dev?2=0.0601m
+Totaltime=3,663sec
+ 63
+unlikelytobetrue.
+C)Howcurved is it?Ahighlycurvedpath isoftenunrealistic foranaerialhawkingspecies
+suchasNyctalusleisleri.
+D) Are theremany height changes?Manoeuvrability ismainly on the horizontal. Drastic
+heightchangesneedexcellentsupportbymanypoints.
+
+10 15
+20
+0
+10
+20
+4
+6
+8
+X(m)
+1
+Y(m)
+2
+
+Figure65.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case01L531)
+
+2
+3
+4
+0
+5
+10
+2
+4
+1
+Y(m)
+2
+X(m)
+Z(
+m
+)
+
+Figure66.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case01M041)
+
+Rtraj=100%
+Rclick?1=52.94%
+davg_dev?1=0.1102m
+Rclick?2=40%
+davg_dev?2=0.5091m
+Totaltime=38,467sec
+Rtraj=100%
+Rclick?1=54.55%
+davg_dev?1=0.0622m
+Rclick?2=62.5%
+davg_dev?2=0.6008m
+Totaltime=964.835
+sec
+ 64
+-5
+0
+5
+10
+-50510
+10
+15
+20
+1
+Y(m)X(m)
+2
+Z(
+m
+)
+
+Figure67.Path?2isunexpectedanddoesn'tmatchbatbehaviour(Case29L473)
+
+510152025
+-5 0 5 10 15
+6
+8
+10
+12
+14
+16
+18
+3
+2
+X(m)Y(m)
+1
+Z(
+m
+)
+
+Figure68.Path?2isunexpectedanddoesnotmatchbatbehaviour(Case29L421)
+
+
+
+
+
+
+Rclick?2=120%
+davg_dev?2=0.4044m
+Totaltime=91,187sec
+Rclick?3=92.31%
+davg_dev?3=0.0806m
+Totaltime=55,180sec
+ 65
+6.ConclusionandDiscussion
+
+Therecordingofflightpathsandvocalizationsisimportanttogainacompleteunderstanding
+of the behaviour of bats, amost diverse group ofmammals. Additionally, the study and
+reproductionofabat’sdetectionsystem,aninnateabilitywhichhasevolvedover50million
+years, is also valuable inmultiple fields.Moreover, it is valuable to understand just how
+Computer Science can play an important role in such cross?disciplinarywork in the real
+world.
+
+Theaimofthisprojecthasbeentoresearchandpresentaframeworkthatcanreconstruct
+3D flight trajectories frommultiplebat callpositionsautomatically,as shownbya system
+overview of this project in Figure 1. Prior flightmodelswere adopted into a trajectory's
+segment subset selection algorithm, utilizing unsupervised classification and
+branch?and?bound methods for recognizing bat flight segments and clustering bat
+trajectories in this project. Moreover, two optimization methodologies, adaptive
+interpolationpointsselectionand importancesampling,wereproposed,andwerefoundto
+reallyimprovethatmostcrucialproblem,thelargecomputationaltime,byapproximately5
+to10times;theyalsoenhancedtheaccuracyoftheinterpolationatthesametime.
+
+Averagereconstructionratesforbattrajectories ineachrealrawdatafilecorrespondingto
+anyFLG?filewereabout81?118%;averagerecognitionratesforbatcallpositionsineachreal
+raw data file corresponding to each trajectory in any FLG?file were about 65?74%; the
+averageunbiaseddistancedeviationofeachtrajectorybetweentrajectories inanyrealraw
+datafileandanyFLG?filewereabout0.45?0.56(m/pt).Finallyaveragecomputationaltimes
+areapproximately34?165secondsrespectively.Theseassessmentresultsprovethereliability
+andefficiencyofthisproject.Notonlysavingmanpower,thisprojectprovidesarepeatable
+andobjectivewayofdataanalysis.
+
+This project therefore appears to provide a feasible methodology to reconstruct bat
+trajectories;however,therearestillsomedifficultiesthatneedtobecompensatedfor.First
+istheneedforamorepreciseandcompletepriorflightmodelwhichdefinesbatbiological
+behaviour in detail and can cover most bat trajectories. Besides, because of tightly
+crisscrossingtrajectoriesorbatschasingeachother,thesearedifficulttoclassifybycurrent
+clustersinthisproject;therefore,amorereliableclusteringmethodisachallengeforthisjob
+in the future. Finally,bat species’ recognitionand classification isanother interesting task
+thatcouldbeapproached.
+
+ 66
+Bibliography
+Akins,J.B.,Kennedy,M.L.,Schnell,G.D.,Sanchez?Hernandez,C.,Romero?Almaraz,M.L.,
+Wooten,M.C.&Best,T.L.(2007).‘FlightSpeedsofThreeSpeciesofNeotropicalBats:
+GlossophagaSoricina,NatalusStramineus,andCarolliaSubrufa’,ActaChiropterologica,
+Vol.9,No.2,pp.477?482. 
+Allee,W.C.(1927).‘AnimalAggregations’,TheQuarterlyReviewofBiology,Vol.2,No.3,pp.
+367?398.
+Balleri,A.,Griffiths,H.D.,Woodbridge,K.,Baker,C.J.&Holderied,M.W.(2010a).
+‘Bat?InspiredUltrasoundTomographyinAir’,2010IEEERadarConference,pp.44?47.
+Balleri,A.,Griffiths,H.,Holderied,M.&Baker,C.(2010b).‘Bat?inspiredMulti?Harmonic
+Waveforms’,2010InternationalWaveformDiversityandDesignConference(WDD),
+pp.86?89.
+Balleri,A.,Woodbridge,K.,Baker,C.J.&Holderied,M.W.(2009).‘ClassificationofFlowers
+ByBats:ComparisonwiththeRadarCase’,2009InternationalWaveformDiversity
+andDesignConference,pp.1?3.
+Bell,G.P.&Fenton,M.B.(1984).‘TheUseofDoppler?ShiftedEchoesasaFlutterDetection
+andClutterRejectionSystem?TheEcholocationandFeeding?Behaviorof
+Hipposideros?Ruber(Chiroptera,Hipposideridae)’,BehavioralEcologyand
+Sociobiology,Vol.15,No.2,pp.109?114.
+Bertini,M.,DelBimbo,A.&Seidenari,L.(2012).‘Multi?ScaleandReal?TimeNon?Parametric
+ApproachforAnomalyDetectionandLocalization’,ComputerVisionandImage
+Understanding,Vol.116,No.3,pp.320?329.
+Calderara,S.,Alaimo,C.,Prati,A.&Cucchiara,R.(2009).‘AReal?TimeSystemforAbnormal
+PathDetection’,CrimeDetectionandPrevention(ICDP2009),3rdInternational
+Conference,pp.1?6.
+Cheetham,A.H.&Hazel,J.E.(1969)‘Binary(Presence?Absence)SimilarityCoefficients’,
+JournalofPaleontology,Vol.43,No.5,pp.1130?1136.
+Comaniciu,D.,Ramesh,V.&Meer,P.(2000).‘Real?TimeTrackingofNon?RigidObjectsUsing
+MeanShift’,IEEEConferenceonComputerVisionandPatternRecognition(CVPR
+2000),pp.142?149.
+Corcoran,A.J.,Barber,J.R.,Hristov,N.I.&Conner,W.E.(2011).‘HowDoTigerMothsJam
+BatSonar?’,JournalofExperimentalBiology,Vol.214,No.14,pp.2416?2425.
+Crandall,M.G.&Rabinowitz,P.H.(1971).‘BifurcationfromSimpleEigenvalues’,Journalof
+FunctionalAnalysis,Vol.8,No.2,pp.321?340.
+Denzinger,A.,Siemers,B.M.,Schaub,A.&Schnitzler,H.U.(2001).‘EcholocationbyThe
+BarbastelleBat,BarbastellaBarbastellus’,JournalofComparativePhysiology
+a?SensoryNeuralandBehavioralPhysiology,Vol.187,No.7,pp.521?528.
+ 67
+Duda,R.O.,Hart,P.E.&Stork,D.G.(2001).PatternClassification.2ndEdition.Canada:John
+Wiley&Sons.
+Eastman,K.M.&Simmons,J.A.(2005).‘AMethodofFlightPathandChirpPattern
+ReconstructionforMultipleFlyingBats’,AcousticsResearchLettersOnline?Arlo,Vol.
+6,No.4,pp.257?262.
+Erwin,H.R.,Wilson,W.W.&Moss,C.F.(2001).‘AComputationalSensorimotorModelof
+BatEcholocation’,JournaloftheAcousticalSocietyofAmerica,Vol.110,No.2,pp.
+1176?1187.
+Faria,D.R.&Dias,J.(2009).‘3DHandTrajectorySegmentationbyCurvaturesandHand
+OrientationforClassificationThroughaProbabilisticApproach’,IntelligentRobots
+andSystems,IROS2009.IEEE/RSJInternationalConference,pp.1284?1289.
+Gaisler,J.(1979).‘ResultsofBatCensusinaTownMammaliaChiroptera’,Vestnik
+CeskoslovenskeSpolecnostiZoologicke,Vol.43,No.1,pp.7?21.
+Garcia,J.,Molina,J.M.,Besada,J.A.&deMiguel,G.(2007).‘Model?BasedTrajectory
+ReconstructionUsingIMMSmoothingandMotionPatternIdentification’,
+InformationFusion,10thInternationalConference,pp.1?8.
+Garcia,J.,Soto,A.,deMiguel,G.,Besada,J.&Tarrio,P.(2008).‘TrajectoryReconstruction
+TechniquesforEvaluationofATCSystems’,DigitalCommunications?Enhanced
+SurveillanceofAircraftandVehicles,TIWDC/ESAV2008.TyrrhenianInternational
+Workshop,pp.1?6.
+Ghose,K.&Moss,C.F.(2003).‘TheSonarBeamPatternofaFlyingBatasItTracksTethered
+Insects’,JournaloftheAcousticalSocietyofAmerica,Vol.114,No.2,pp.1120?1131.
+Ghose,K.,Zotkin,D.,Duraiswami,R.&Moss,C.F.(2001).‘MultimodalLocalizationofa
+FlyingBat’,IEEEInternationalConferenceonAcoustics,Speech,andSignal
+Processing,pp.3057?3060.
+Goerlitz,H.R.,terHofstede,H.M.,Zeale,M.R.K.,Jones,G.&Holderied,M.W.(2010).‘An
+Aerial?HawkingBatUsesStealthEcholocationtoCounterMothHearing’,Current
+Biology,Vol.20,No.17,pp.1568?1572.
+Griffin,D.R.(1958).ListeningintheDark,NewHaven:YaleUniversityPress.
+Grodzinski,U.,Spiegel,O.,Korine,C.&Holderied,M.W.(2009).‘Context?DependentFlight
+Speed:EvidenceforEnergeticallyOptimalFlightSpeedintheBatPipistrellusKuhlii?’,
+JournalofAnimalEcology,Vol.78,No.3,pp.540?548.
+Hagino,T.,Hiryu,S.,Fujioka,S.,Riquimaroux,H.&Watanabe,Y.(2007).‘AdaptiveSONAR
+SoundsbyEcholocatingBats’,2007SymposiumonUnderwaterTechnologyand
+WorkshoponScientificUseofSubmarineCablesandRelatedTechnologies,Vol.1&2,
+pp.647?651.
+Hayward,B.&Davis,R.(1964).‘FlightSpeedsinWesternBats’,JournalofMammalogy,Vol.
+45,No.2,pp.236?242.
+ 68
+Hiryu,S.,Hagino,T.,Shiort,Y.,Riquiniaroux,H.&Watanabe,Y.(2007).‘Compensation
+BehaviorsinEcholocatingBatsMeasuredbyaTelemetryMicrophoneDuringFlight’,
+2007SymposiumonUnderwaterTechnologyandWorkshoponScientificUseof
+SubmarineCablesandRelatedTechnologies,Vol.1&2,pp.578?582. 
+Holderied,M.W.,Baker,C.J.,Vespe,M.&Jones,G.(2008).‘UnderstandingSignalDesign
+DuringthePursuitofAerialInsectsbyEcholocatingBats:ToolsandApplications’,
+IntegrativeandComparativeBiology,Vol.48,No.1,pp.74?84. 
+Hooper,J.H.D.(1981).‘TheUseofanUltrasonicReceivertoObtainDistributionDatafor
+PipistrellesandOtherBatswithintheLondonArea’,TheLondonNaturalist:the
+journaloftheLondonNaturalHistorySociety,No.60,pp.47?63.
+Hopkins,H.L.,Sanchez?Hernandez,C.,Romero?Almaraz,M.D.,Gilley,L.M.,Schnell,G.D.&
+Kennedy,M.L.(2003).‘FlightSpeedsofFourSpeciesofNeotropicalBats’,
+SouthwesternNaturalist,Vol.48,No.4,pp.711?714.
+Hurtado,M.&Nehorai,A.(2008).‘Bat?inspiredAdaptiveDesignofWaveformandTrajectory
+forRadar’,42ndAsilomarConferenceonSignals,SystemsandComputers,pp.36?40.
+Jain,A.K.&Dubes,R.C.(1988).AlgorithmsforClusteringData,Prentice?HallAdvanced
+ReferenceSeries.UpperSaddleRiver,NJ:Prentice?Hall.
+Jain,A.K.,Murty,M.N.&Flynn,P.J.(1999).‘DataClustering:AReview’,ACMComputing
+Surveys,Vol.31,No.3,pp.264?323.
+Jensen,M.E.,Moss,C.F.&Surlykke,A.(2005).‘EcholocatingBatsCanUseAcoustic
+LandmarksforSpatialOrientation’,JournalofExperimentalBiology,Vol.208,No.23,
+pp.4399?4410.
+Kalman,R.E.(1960).‘ANewApproachtoLinearFilteringandPredictionProblems’,
+TransactionsoftheASME,JournalofBasicEngineering,No.82,SeriesD,pp.35?45.
+Kanzawa,Y.&Oishi,S.(1999).‘CalculatingBifurcationPointswithGuaranteedAccuracy’,
+IEICETransFundamElectronCommunComputSci(InstElectronInfCommunEng),
+Vol.E82–A,No.6,pp.1055?1061.
+Kline,M.(1998).Calculus:AnIntuitiveandPhysicalApproach.N.Y:Dover.
+Lee,E.Y.,Betke,M.&Kunz,T.H.(2004).‘BatsinMotion:StereoObjectRecognitionand
+TrajectoryAnalysisofFlyingBats’,BatResearchNews,Vol.45,No.4,pp.236?252.
+Maina,J.N.(2000).‘WhatItTakestoFly:TheStructuralandFunctionalRespiratory
+RefinementsinBirdsandBats’,JournalofExperimentalBiology,Vol.203,No.20,pp.
+3045?3064.
+Mao,J.&Jain,A.K.(1996).‘ASelf?OrganizingNetworkforHyperellipsoidalClustering(HEC)’,
+IEEETransactionsonNeuralNetworks,Vol.7,No.1,pp.16–29.
+Mills,R.S.,Barrett,G.W.&Farrell,M.P.(1975).‘PopulationDynamicsoftheBigBrownBat
+(Eptesicusfuscus)inSouthwesternOhio’,JournalofMammalogy,Vol.56,No.3,
+591?604.
+ 69
+Moss,C.F.&Surlykke,A.(2010).‘ProbingtheNaturalScenebyEcholocationinBats’,
+FrontiersinBehavioralNeuroscience,Vol.4,No.33,pp.1?16.
+Mueller,H.&Emlen,J.(1957).‘HominginBats’,Science,Vol.126,No.3268,pp.307?308.
+Narendra,P.M.&Fukunaga,K.(1977).‘ABranchandBoundAlgorithmforFeatureSubset
+Selection’,IEEETransactionsonComputers,Vol.C?26,No.9,pp.917?922.
+Obrist,M.K.,Rathey,E.,Bontadina,F.,Martinoli,A.,Conedera,M.,Christe,P.&Moretti,M.
+(2011).‘ResponseofBatSpeciestoSylvo?PastoralAbandonment’,ForestEcology
+andManagement,Vol.261,No.3,pp.789?798.
+Riskin,D.K.(2001).‘PipistrellusBodenheimeri’,MammalianSpecies,No.651,pp.1?3.
+Rogers,D.F.&Adams,J.A.(1990).MathematicalElementsforComputerGraphics.2nd
+Edition.London:McGraw?Hill.
+Russ,J.M.,Briffa,M.&Montgomery,W.I.(2003).‘SeasonalPatternsinActivityandHabitat
+UsebyBats(PipistrellusSpp.andNyctalusLeisleri)inNorthernIreland,Determined
+UsingaDrivenTransect’,JournalofZoology,Vol.259,pp.289?299.
+Russo,D.&Jones,G.(2002).‘IdentificationofTwenty?TwoBatSpecies(Mammalia:
+Chiroptera)fromItalybyAnalysisofTime?ExpandedRecordingsofEcholocation
+Calls’,JournalofZoology,Vol.258,pp.91?103.
+Russo,D.,Cistrone,L.&Jones,G.(2005).‘SpatialandTemporalPatternsofRoostUseby
+Tree?DwellingBarbastelleBatsBarbastellaBarbastellus’,Ecography,Vol.28,No.6,
+pp.769?776.
+Sanchez?Hernandez,C.,Romero?Almaraz,M.D.L.,Wooten,M.C.,Schnell,G.D.&Kennedy,
+M.L.(2006).‘SpeedinFlightofCommonVampireBats(DesmodusRotuadus)’,
+SouthwesternNaturalist,Vol.51,No.3,pp.422?425.
+Shiel,C.B.,Shiel,R.E.&Fairley,J.S.(1999).‘SeasonalChangesintheForagingBehaviourof
+Leisler'sBats(NyctalusLeisleri)inIrelandasRevealedbyRadio?Telemetry’,Journal
+ofZoology,Vol.249,No.3,pp.347?358.
+Shirley,P.&Marschner,S.(2009).FundamentalsofComputerGraphics,Natic,MA:AK
+Peters.
+Simmons,J.A.,Fenton,M.B.&O'Farrell,M.J.(1979).‘EcholocationandPursuitofPreyby
+Bats’,Science,Vol.203,No.4375,pp.16?21.
+Songtao,L.,Yufei,M.&Wenhui,Y.(2010).‘AnEffectiveDataFusionandTrackPrediction
+ApproachforMultipleSensors’,ComputationalIntelligenceandSoftware
+Engineering(CiSE),2010InternationalConference,pp.1?4.
+Sun,J.,Zhang,W.W.,Tang,X.O.&Shum,H.Y.(2005).‘Bi?DirectionalTrackingUsing
+TrajectorySegmentAnalysis’,10thIEEEInternationalConferenceonComputerVision
+(ICCV2005),pp.717?724.
+ 70
+Surlykke,A.,Ghose,K.&Moss,C.F.(2009).‘AcousticScanningofNaturalScenesby
+EcholocationintheBigBrownBat,EptesicusFuscus’,JournalofExperimentalBiology,
+Vol.212,No.7,pp.1011?1020.
+Theriault,D.H.,Wu,Z.,Hristov,N.I.,Swartz,S.M.,Breuer,K.S.,Kunz,T.H.&Betke,M.
+(2010).ReconstructionandAnalysisof3DTrajectoriesofBrazilianFree?TailedBatsin
+Flight.UniversityofBoston,ComputerScienceTechnicalReport.
+Tomasi,C.,Petrov,S.&Sastry,A.(2003).‘3DTracking=Classification+Interpolation’,
+ComputerVisionProceedings.NinthIEEEInternationalConference,Vol.2,pp.
+1441?1448.
+Twente,J.W.(1955).‘AspectsofaPopulationStudyofCavern?DwellingBats’,Journalof
+Mammalogy,Vol.36,pp.379?390.
+Twente,J.W.(1956).‘EcologicalObservationsonaColonyofTadaridaMexicana’,Journalof
+Mammalogy,Vol.37,pp.42?47.
+Urbani,C.B.(1980).‘AStatisticalTablefortheDegreeofCoexistencebetweenTwoSpecies’,
+Oecologia(Berl.),Vol.44,No.3,pp.287?289.
+Watts,P.,Mitchell,E.J.&Swartz,S.M.(2001).‘AComputationalModelforEstimatingthe
+MechanicsofHorizontalFlappingFlightinBats:ModelDescriptionandValidation’,
+JournalofExperimentalBiology,Vol.204,No.16,pp.2873?2898.
+Whitaker,J.O.,Shalmon,B.&Kunz,T.H.(1993).‘FoodandFeeding?HabitsofInsectivorous
+BatsfromIsrael’,ZeitschriftFurSaugetierkunde?InternationalJournalofMammalian
+Biology,Vol.59,No.2,pp.74?81.
+Williams,T.C.,Ireland,L.C.&Williams,J.M.(1973).‘High?AltitudeFlightsofFree?TailedBat,
+Tadarida?Brasiliensis,ObservedWithRadar’,JournalofMammalogy,Vol.54,No.4,
+pp.807?821.
+Witten,I.H.&Frank,E.(2000).DataMining:PracticalMachineLearningToolsand
+TechniqueswithJavaImplementations.SanFrancisco:MorganKaufmann.
+Yang,J.&Zhang,J.(2007).‘OfflineSwimmerCapTrackingUsingTrajectoryInterpolation’,
+DigitalImageComputingTechniquesandApplications,9thBiennialConferenceof
+theAustralianPatternRecognitionSociety,pp.579?585.
+Yang,Y.&Chen,K.(2010).‘UnsupervisedLearningviaIterativelyConstructedClustering
+Ensemble’,NeuralNetworks(IJCNN),The2010InternationalJointConference,pp.
+1?8.
+Zheng,W.,Hristov,N.I.,Hedrick,T.L.,Kunz,T.H.&Betke,M.(2009).‘TrackingaLarge
+NumberofObjectsfromMultipleViews’,ComputerVision,2009IEEE12th
+InternationalConference,pp.1546?1553.
+  

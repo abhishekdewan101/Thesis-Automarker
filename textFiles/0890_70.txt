@@ -1,0 +1,2470 @@
+ 
+ 
+- 2 - 
+ 
+Executive Summary 
+The objective of this project is to improve the matching functionality of software 
+named “Subsift” which is designed to automatically match submitted papers and 
+potential reviewers. I make improvement to Subsift by learning from reviewers’ 
+feedbacks on the ranked list of papers provided to each reviewer by Subsift and 
+incorporating the learning result into Subsift, so that the matching result of reviewers 
+with new incoming papers will match better their individual preferences. 
+This project is of 50% theoretical investigation and 50% software implementation. 
+The problem of learning from different formats of feedbacks falls into the Machine 
+Learning field “learning to rank”. I did a bunch of background research into 
+algorithms in this field. Then I implemented a web application on which the reviewers 
+can give three formats of feedbacks. The algorithms to process feedbacks are selected 
+from those I closely studied during the background research phase.  
+  In the research review, I expounded important algorithms in four major branches of 
+“learning to rank”. In this phase, my achievements are listed as follows:  
+? Designed three feedback formats which are practical for the reviewers to give and 
+easy to be learned by existing learning algorithms (see section 6, 7, 8). 
+? Designed scientific working flow to obtain feedbacks; implemented user-friendly 
+interfaces (see section 4). 
+? Designed java classes with high cohesion and low coupling to complete the data 
+processing work along the working flow efficiently (see section 5, 6, 7). 
+? Did thorough study of two algorithms: Prank and Ranking SVM (see section 6.1 
+and section 7.1); Implemented code dealing with pointwise and pairwise 
+feedbacks by applying these two algorithms respectively (see section 6.2 and 
+section 7.2). Note that the training algorithm of Ranking SVM is from an external 
+java library called LIBSVM, which I explained in section 7.2.3. 
+? Creatively transformed listwise feedback into piontwise and pairwise feedback 
+formats and processed it with Prank or Ranking SVM based on the user’s choice 
+(see section 8).   
+? In consideration of the noisiness of reviewers’ feedbacks, I implemented a jsp 
+page asking reviewers to give secondary feedback on the renewed ranked list 
+produced after incorporating feedback; tuned the degree of feedback’ influence 
+according to the reviewers’ own evaluation on the renewed list (see section 9.1).  
+? Designed an evaluation model to assess and compare the effectiveness of the 
+algorithms (see section 9.2); did input parameter optimization based on the results 
+of the evaluation model (see section 9.3).  
+? Solved the problem of communicating with Subsift from my application, 
+including getting/posting a considerable amount of data, creating/deleting folder, 
+etc (see section 3).  
+? Proposed future improvement directions (see section 10). 
+ 
+ - 1 - 
+ 
+Acknowledgements 
+I would like to thank: 
+. My Project Supervisor, Prof. Flach for introducing me to this fascinating area of 
+Learning to Rank and for his patient guidance, he is the best supervisor I have ever 
+met or heard, I can’t thank him more 
+. My parents for their comfort when I got depressed 
+. My friend Kevin, for his company throughout this difficult time 
+. My friend Edith, for her encouragement 
+ 
+ - 1 - 
+ 
+Table of Contents 
+1 Introduction ................................................................................................................. 1 
+1.1 Aims and Objectives ............................................................................................ 1 
+1.2 Theoretical Investigation...................................................................................... 2 
+1.3 Software Implementation ..................................................................................... 2 
+2 Background Research on Learning to Rank............................................................... 3 
+2.1 Conventional Approach ....................................................................................... 3 
+2.2 Pointwise Approach ............................................................................................. 4 
+2.3 Pairwise Approach ............................................................................................... 4 
+2.4 Listwise Approach................................................................................................ 5 
+3 Subsift......................................................................................................................... 6 
+3.1 What is Subsift ..................................................................................................... 6 
+3.2 Theoretical basis .................................................................................................. 7 
+3.2.1 Vector Space Model ...................................................................................... 7 
+3.2.2 Representational State Transfer (REST)....................................................... 8 
+3.3 Subsift REST API ................................................................................................ 8 
+3.4 REST API Explorer ........................................................................................... 11 
+3.5 Improvement on Subsift Using Reviewers’ feedback  ....................................... 13 
+4 Main Working flow................................................................................................... 14 
+5 Basic Class Structure ................................................................................................ 17 
+6 Feedback type 1 --- Top n and Bottom n Papers ...................................................... 20 
+6.1 Algorithm Explanation ....................................................................................... 20 
+6.2 Software Implementation ................................................................................... 22 
+6.2.1 Illustration for JSP Pages ............................................................................ 22 
+6.2.2 Illustration for Class PointWiseFeedbackProcessing.java.......................... 25 
+7 Feedback type 2 --- n ordered instance pairs ............................................................ 33 
+7.1 Algorithm Explanation ....................................................................................... 33 
+7.1.1 SVM ............................................................................................................ 33 
+7.1.1.1 Maximize Margin................................................................................. 33 
+7.1.1.2 Lagrangian formulation for linear separable case ................................ 34 
+7.1.1.3 Lagrangian formulation for nonlinear separable case.......................... 36 
+7.1.1.4 Optimality Criteria for SVM problem ................................................. 37 
+7.1.2 Cast Preference learning as Ordinal Regression Problem .......................... 38 
+7.1.3 Preference Learning based on SVM ........................................................... 40 
+7.2 Software Implementation ................................................................................... 41 
+7.2.1 Illustration for JSP Pages ............................................................................ 41 
+7.2.2 Illustration for Class PairWiseFeedbackProcessing.java ............................ 43 
+7.2.3 Illustration for LIBSVM ............................................................................. 48 
+8 Feedback type 3 --- Full list of n papers ................................................................... 49 
+9 Algorithm Evaluation and Parameter Optimization ................................................. 50 
+ 
+ 
+ 
+- 2 - 
+ 
+9.1 Evaluation from Reviewer ................................................................................. 50 
+9.2 Evaluation Model ............................................................................................... 51 
+9.2.1 Evaluation Steps.......................................................................................... 51 
+9.2.2 Evaluation Algorithm.................................................................................. 52 
+9.2.3 Evaluation Result ........................................................................................ 53 
+9.3 Parameter Optimization ..................................................................................... 54 
+10 Future Work ............................................................................................................ 55 
+10.1 Larger Scale Experiment.................................................................................. 55 
+10.2 Parameter optimization .................................................................................... 56 
+10.3 Input Inspection................................................................................................ 56 
+10.4 Interface Optimization ..................................................................................... 57 
+11 Conclusion .............................................................................................................. 57 
+Bibliography................................................................................................................. 58 
+ 
+ 1 
+ 
+1. Introduction  
+As college students or researchers, many of us have the experience of submitting 
+papers to journals or conferences in order to publish them. We can imagine that there 
+must be a group of reviewers (instead of just one person) to assess those papers. After 
+receiving a serious amount of papers, it would be an extremely time-consuming task 
+for the committee chair to match those papers with potential reviewers based on their 
+professional fields if the work is done manually.  
+Subsift is a tool coming to their rescue. It matches submitted papers to potential 
+reviewers based on the similarity between those papers and the reviewers’ published 
+works which can be gotten from online databases such as Google Scholar [1]. At 
+present, this software applies a simple Vector Space Model to perform the matching 
+function, which doesn’t have any learning capability.  
+1.1 Aims and Objectives  
+The ultimate goal of this project is to add learning capability to Subsift. An 
+application is designed to enable Subsift learn from reviewers’ feedbacks on the 
+ranked list of papers produced by Subsift to each of them so as to better match new 
+coming submissions to reviewers. Since this project is of 50% investigation and 50% 
+software implementation, the aim can be divided into two parts.  
+In the investigatory part, my objective is to have a good understanding of 
+algorithms available solving “learning to rank” problem, design feedback formats 
+based on the study, and to have exhaustive study of algorithms dealing with the 
+formats of feedbacks that I designed. Note that the feedback formats designed should 
+be possible to be dealt with by existing learning algorithms and practical for the 
+reviewers to give in the same time.  
+In the programming part, my objective is to implement an application on which the 
+reviewers are able to give 3 formats of feedbacks that I designed in the investigatory 
+part and evaluate the effectiveness of the feedback processing algorithms. Specifically, 
+first I need to implement a user- friendly interface; second I need to convert the 
+general, theoretical expression of algorithms solving “learning to rank” problem that I 
+studied in the investigatory part into code and decide the parameters in the algorithms 
+giving full consideration to the practical situation, which involves both thorough 
+understanding of the algorithms and certain degree of creativity; last but not least, I 
+need to design reasonable methods to evaluate and compare the effectiveness of 
+feedback processing algorithms. 
+ 
+ 
+2 
+ 
+1.2 Theoretical Investigation  
+Let us first have a wide guess on what kind of feedbacks we can ask the reviewer to 
+give after providing him with a ranked list of papers. We might invite him to give 
+each paper a score within the range of [1, 10]; or we can ask him to give us several 
+pairs of papers indicating that he prefers the first ones comparing to the second ones; 
+it is also possible for the reviewer to give his own ordered list of all (or some of the) 
+papers. Although those feedbacks are of different formats, they all specify some 
+partial orders between items in the feedback.  
+  “Learning to rank” is a Machine Learning problem in which the goal is to construct 
+a ranking function from training data, where the training set is a list of items with 
+some partial order specified between items of the list. It is obvious that learning from 
+reviewers’ feedbacks falls exactly into the area “learning to rank”. Therefore, I did a 
+bunch of background research into all kinds of algorithms designed to solve “learning 
+to rank” problem.  
+The algorithms in this field are divided into conventional approach, pointwise 
+approach, pairwise approach and listwise approach based on what kind of training 
+data is dealt with. Algorithms in conventional approach solve the problem of ranking 
+which regards binary judgments or multi-valued discrete as “non-ordered” categories 
+or real values; Algorithms in pointwise approach fit to training sets containing 
+individual instances with rankings(or say, scores) attached to them; Algorithms in 
+pairwise approach are suitable for training sets with pairwise instances and there is 
+label on each pair indicating preference; Algorithms in listwise approach apply to 
+training sets in which a list of full ranked documents associated with a query serves as 
+an instance. 
+I did a detailed study of algorithms in this field before designing and implementing 
+the feedback processing application, which is summarized in section 2.  
+1.3 Software Implementation  
+The software I implemented is a web application. It can deal with three types of 
+feedbacks described above. In pointwsie approach, it asks a reviewer to select top n 
+and bottom n papers from a ranked list of m papers provided by Subsift to him. Then 
+the software deals with this type of feedback using an algorithm called “prank”. In 
+pairwise approach, it requires reviewers to provide n pairs of papers indicating they 
+prefer the former ones to the latter ones. This kind of feedback will be converted to a 
+traditional SVM problem and processed by Ranking SVM. In listwise approach, a 
+ranked list of n papers will be required from the reviewer. This problem can be either 
+solved by Prank or Ranking SVM. If the later one is chose, the list will be converted 
+ 
+ 
+3 
+ 
+into n-1 pairs of instances: (paper1, paper 2), (paper 2, paper 3) (paper 9, paper 10).  
+The outcomes of those algorithms are the same, which is a “local weight” vector for 
+terms in the reviewer’s profile. After updating the reviewer ’s profile with the vector 
+calculated from the reviewer ’s feedback, the matching result of this reviewer with 
+future incoming papers will suit better to his individual preference.  
+  In order to evaluate the effectiveness of those algorithms, after the “local weight” 
+vector being updated, a new ranked list of m papers will be calculated and presented 
+to the reviewer and he will be asked whether feeling happy about the list. Based on 
+the evaluation of the reviewer, the parameters of the algorithm will be slightly altered 
+to trim the influence of the reviewers’ first feedback on the reviewer ’s profile. For 
+example, if the reviewer says that he is extremely unsatisfied with the result, then the 
+value added or subtracted from the base value of local weights will be lessened ten 
+times to minimize the influence of the feedback.  
+  I also designed an evaluation model to evaluate the effectiveness of the feedback 
+processing algorithms, as well as the difference in ranking accuracy improvement by 
+having different numbers of training instances. 
+2 Background Research on Learning to Rank  
+In this section, I will expound briefly the background research work I did. The 
+algorithms I used (Prank and Ranking SVM) to deal with feedbacks in my application 
+are selected from the algorithms that I have closely studied in this phase.  
+2.1 Conventional Approach  
+In conventional approach classification or regression methods are directly applied to 
+classify instances into two classes (relevant and irrelevant). With a simple 
+post-process to S-CART, we can directly apply regression tree to ranking problem [2]; 
+there are also some models straightforwardly applying classification methods in 
+solving ranking problem, including the BIR model [3], language model [4], which fall 
+into the category of generative classification; and Maximum Entropy model [5], 
+Support Vector Machine [3], which fall into the category of discriminative 
+classification.  
+Because those models depend on the assumption of independency of instances 
+which is very likely to be untrue in the real world [6]; besides, it doesn’t give 
+consideration to unique properties of ranking for information retrieval (for example, 
+the relative order might be more important rather than predicting accurate category or 
+value), we proceed to more advanced ranking models which are categorized into 
+pointwise approach, pairwise approach and listwise approach.  
+ 
+ 
+4 
+ 
+2.2 Pointwise Approach 
+Algorithms in this approach learn from an ordinal training set to tune thresholds of the 
+ordinal categories and support vectors to make ranking produced by the ranking rule 
+fit to the real ranking of instances in the training set. This is just slightly different 
+from the conventional approach as the objects it deals with are discrete classes instead 
+of real values and the output is ordered classes rather than non-ordered classes.  
+The training process is to solve the problem of ordinal regression which can be 
+referred as a learning paradigm as follows: Given a training sample sequence (       ), 
+(       ),  , (        ) donated by         , and a ranking rule H from    to Y. (       
+ ) are 
+instance-ranking pairs.       represents an instance which is in   ;    donates 
+corresponding rank which is an element of a finite sample set S = {  ,   ,     } with 
+“ ” as a total order relation which means    is preferred over     . The learning 
+procedure selects a mapping rule    using the predefined loss L. L defines the 
+difference between       and Y. Problem of ordinal regression is to tune parameters 
+in    so as to minimize the risk functional       
+     so that the instances in the 
+training sample         are mapped into the right intervals. This is based on the principle 
+called Empirical Risk Minimization (ERM) [7, 8]. 
+In pointwise approach, I did close study of Prank, an algorithm trying to cast 
+instances into the correct intervals [7, 9], which is based on ordinal regression; 
+Ranking with large ranking principle [10], an algorithm trying to maximize the 
+margins between classes which the instances fall in, there are two different strategies: 
+“fix margin” strategy and “sum of margin” strategy, which are both based on SVM.  
+As explained above, the input of training is a sequence (       ), (       ),  , (        ). This 
+kind of models can’t deal with the circumstances under which the feedback is a pair or 
+a list of documents instead of a single one. Those situations are tackled by algorithms 
+in pairwise and listwise approaches. 
+2.3 Pairwise Approach 
+Pairwise approach uses pairwise user feedback to training the learning algorithm. In 
+this approach, I studied carefully Ranking SVM [8], which applies preference learning 
+to ordinal regression problem. It converts pairvise problem into a traditional SVM 
+problem. RankBoost is another algorithm specially designed for pairwise feedbacks 
+which gives different degrees of attention to each pairs depending on their weights 
+(importance). It figures out the final ranking by combining many “weak rankings” 
+through by a “weak learner”, specific scores are of no use in this algorithm, instead, it 
+totally relies on relative orders [11]. There are many other algorithms falling in this 
+category, such as RankNet, a system using cross entropy as loss function and gradient 
+ 
+ 
+5 
+ 
+descent as algorithm to train a Neutral Network model to produce an ordered list.  
+  Pairwise approach has many advantages. First, it makes use of existing 
+classification models (SVM, boosting, Neural Network). Also, pairwise preference is 
+easier to given comparing to giving precise scores; moreover, in some sense, pairwise 
+instances fit better to the circumstance in which feedbacks’ associated scores have 
+different semantics as they’re from different people (70 might mean “excellent” for 
+one reviewer while it means “not bad” for another reviewer).  
+  A shortcoming of pairwise approach is that it treats every feedback pair identically, 
+which means the group structure is ignored. For example, in ranking SVM, the 
+position of the pair in the ranking list is invisible to the loss function (31). Another 
+shortcoming is that the computation cost is relatively high as there are so many 
+possible pairs in a training set [12].  
+2.4 Listwise Approach 
+For methods in listwise approach, in the learning process, unlike algorithms in 
+pointwise approach and pairwise approach, which treat a single document associated 
+with a ranking or an ordered pair of documents as a learning instance, algorithms in 
+listwise approach take a list of perfectly ranked documents associated with a query as 
+one learning instance, so that group structure is taken into consideration. More 
+formally, listwise approach can be described as follow: 
+Donate        
+ 
+   
+  
+ 
+   
+    
+  
+     to be the document list associated with query     , and 
+       
+ 
+   
+  
+ 
+   
+    
+  
+     to be the corresponding degree of relevance(scores) of      to     . 
+Future vector  
+ 
+   
+ =     
+           , j = 1,2,,  , i = 1,2,,m. So that each instance has a list of 
+features      =   
+ 
+   
+  
+ 
+   
+    
+  
+    , together with corresponding scores.?         ?is viewed as 
+one learning instance. So that the learning space is donated by    ?         ?    
+  [14]. 
+  In learning, for each feature vector  
+ 
+   , the learning algorithm will assign it a score  
+   
+ 
+   
+ , so scores form a list           
+         
+          
+  
+   
+  . The objective of the learning 
+algorithm is to minimize:                    [12].  
+In this approach, I had a detailed study of one algorithm: ListNet. It maps the 
+ranking produced by the ranking rule and the real ranking to two probability 
+distributions using Top One probability model, then it takes Cross Entropy as the loss 
+function, uses Neutral network to compute the score list and Gradient Descent to 
+minimize the loss in each round [12].  
+Listwise approach takes the group structure into account and it solves the ranking 
+problem straightforwardly. ListNet is a primary model in listwise approach which 
+minimizes loss by minimizing the difference of corresponding probability distribution. 
+There’re other models following this train of thought such as listMLE, which instead 
+maximizes sum of the likelihood function of two probability distributions, it also uses 
+Neural Network as ranking model, but it chooses Stochastic Gradient Descent(SGD) 
+ 
+ 
+6 
+ 
+as the algorithm to train the model. [13] proves its effectiveness through experiments. 
+3. Subsift 
+Peer review of written works is important for academic process which should give 
+feedback of high quality to submissions to conferences, journals, funding bodies, etc. 
+No need to say, making a good match between submissions and reviewers is an 
+important link to ensure the quality. In the past, the matching process consisted of 
+basically two steps. In step 1, the reviewers were given all submissions and they bided 
+on the ones they would like to review. In step 2, the committee chair made allocation 
+decisions depending on the bids of reviews [1]. 
+Obviously, doing the matching and allocating job in a complete manual way is 
+quite demanding. For reviewers, going through more than hundreds abstracts in order 
+to select a few papers on which to place a high bid is too time-consuming; for the 
+committee chair, with only the reference of the bids of reviewers, making a good 
+match is still difficult, especially for the submissions with too many or too few bids.  
+3.1 What is Subsift 
+Subsift, short for submission sifting, was designed to assist the matching and 
+allocating process. After deploying Subsift, there would be three steps in allocating 
+submissions to corresponding reviewers. Step 1, for any paper, each reviewer's bid is 
+produced by Subsift based on textual similarity between the papers' abstract and the 
+reviewers' publication titles, which can be found in the DBLP bibliographic database. 
+Step 2, each reviewer is sent an email containing a personalized Subsift-generating list 
+of papers ordered by their similarity to his own published works, then the reviewer 
+can bid on the ones he would like to review based on the list. Step3, after all reviewers’ 
+bids are submitted, the committee chair will be able to allocate paper according to 
+reviewers’ bits produced in step 2 while consulting a similarity ranked list of 
+reviewers for each paper produced in step 1 to assist them in allocating papers with 
+too few or too many bids [1].  
+Subsift magnificently reduces the work load for reviewers since they only need to 
+check whether the list produced by Subsift is reasonable instead of looking for papers 
+which they might be interested in from a sea of submissions. Meanwhile, it also 
+simplifies the allocating work of the committee chair by providing them a similarity 
+ranked list of reviewers for each paper as reference when the decision is hard to make 
+only with the bids of reviewers.  
+The Subsift tools were originally designed to help with the matching process of 
+peer review for the ACM SIGKDD'09 data mining conference. Later it has been used 
+in many major data mining conferences. Now Subsift is not only applied to the field 
+of academic paper review, it is developed into a tool with more general usage such as 
+personal discovery, mashup, etc. It is now applied in some interesting fields, for 
+ 
+ 
+7 
+ 
+example, it is used by some profiling research groups and organizations [1]. 
+3.2 Theoretical basis 
+The next question is: how does Subsift match submissions and reviewers, and thus 
+generate a similarity-ordered list of reviewers for a particular submission (and vise 
+versa)? The theoretical basis of the matching functionality of Subsift is the well 
+known vector space model from information retrieval [14]. In addition, Subsift 
+software relies on the representational state transfer (REST) design pattern for web 
+services [15]. In this section, I’ll give brief overview of these topics in turn.  
+3.2.1 Vector Space Model 
+The canonical task in information retrieval is, given a query q in the form of a list of 
+terms, rank a set of text documents D in order of their similarity to the query. The  
+vector space model is a common approach to solving this problem.  
+Vocabulary V is the set of distinct terms in D, which defines a vector space with 
+dimensionality |V|. Each d in D is represented by a set of terms occurring in d. Thus 
+each document    can be represented as vector       =                           
+  in the 
+space, and query q can be represented as vector    in the space. The angle ?  between 
+vectors       and     represents the similarity between query q and document   , which 
+can be measured by its cosine, namely, the dot product of the vectors scaled to unit 
+length [16]: 
+s(
+?
+q ,
+?
+jd ) = cos(? ) = 
+||||*||||
+*
+??
+??
+j
+j
+dq
+dq
+ 
+However, we can’t directly use raw terms count    and       because in that case the result 
+will treat all documents equally important and deviate towards long documents. Instead, we 
+use frequency-inverse document frequency (tf-idf) weighting scheme in which the 
+element of the feature vector is based on the frequency that a word appears in a 
+document plus the penalty on that word depending on how many documents it 
+appeared in. More formally, term frequency     of term    in the document   , and 
+inverse document frequency      of term     are defined as [16]:  
+?
+?
+k kj
+ij
+ij
+n
+n
+tf     iidf  = )
+||
+(log 2
+idf
+D
+    ijw  
+= tf-id ijf  = ijtf * iidf    
+ 
+Where       donates how many times are term    appears in document    ,     donates 
+how many documents in D in which term     appears [16].  
+  In this way, the similarity between query q and document     can be calculated as: 
+(1) 
+(2) 
+ 
+ 
+8 
+ 
+ S (
+?
+q ,
+?
+jd ) = 
+    
+ 
+       
+     
+ 
+         
+ 
+   
+               (3) 
+In Subsift, we compare every document in one collection D1 (e.g. abstracts) with 
+every document in another collection D2 (e.g. reviewer bibliographies) to produce a 
+ranked list for each document. It aims at the importance of each term over the union 
+of documents folders D1 and D2, so that          values are calculated based on the 
+union of D1 and D2 [16]. 
+3.2.2 Representational State Transfer (REST) 
+REST is a design pattern for web services that you can send requests to web sources 
+and get response from it using HTTP protocol [4]. In REST, URIs represent resources 
+and HTTP request methods define operations on those resources. The operations are 
+implemented by adding verbs into the URIs, such as “get”, which returns a webpage 
+in the form of an HTTP response which the browser displays.  Table 1 shows five 
+most significant HTTP request methods [16]. 
+HTTP Method Usage in REST Changes Resource 
+GET show and list operations No 
+HEAD exists operations to check if a resource exists No 
+POST create and compute operations Yes 
+PUT update and recompute operations Yes 
+DELETE destroy operations Yes 
+Table 1 HTTP request methods, Source: Subsift Website 
+3.3 Subsift REST API 
+Subsift has an Application Programming Interface (API) which allows the 
+functionality of Subsift to be incorporated into other softwares, namely API enables 
+others’ programs to call functions of Subsift. Subsift API follows the design 
+principles of REST.  
+API is organized based on folders which are divided into 3 types: documents folder, 
+profiles folder and Match Folder. A document is usually an external resource such as 
+the content of a webpage or the abstract of a conference paper, which is an item of a 
+Documents Folder. A profile is a summary of the unique features of a document 
+comparing to other documents in the same documents folder, which is grouped into 
+ 
+ 
+9 
+ 
+Profile Folder. Two Profile Folders compare with each other to produce a Match 
+Folder in which there is a match item produced using Vector Space Model for each 
+profile item in the two profiles folder. For each term in each match item the tf-idf 
+cosine similarity, and various related statistics are recorded. Figure 1 shows how 
+information is stored in the Document Folder, Profiles Folder and Match Folder 
+respectively. Knowing the inner structure of those folders is essential for the program 
+to communicate with Subsift.  
+Document Folder                           Profile Folder  
+ 
+Match Folder 
+Figure 1 Inner Structure of 3 types of folders in Subsift, Source: Subsift Website 
+From Figure 1, we can see that from Document Folder, we can get the text of each 
+document item. In Match Folder, there is a list of items from one Profile Folder 
+(reviewers) for each item in the other Profile Folder (papers).  
+Profile Folder stores the tf- idf value of each term in each profile item. Besides 
+wtfidf value, tage <wl> </wl> stores the value of local weight of the term; local term 
+ 
+ 
+10 
+ 
+weights apply to a specific reviewer or document. Match scores for terms are 
+multiplied by their local term weights. Specifying term weights allows the importance 
+of terms to be scaled down. A term weight of zero is equivalent to adding the term to 
+the stop words list. A term weight of one is equivalent to not specifying any weight. 
+Local weight (tag <wl></wl>) is the place where the result of feedback being 
+incorporated.  
+Figure 2 workflow of Subsift API, Source: Subsift Website  
+Figure 2 depicts the workflow of the transformation of documents from two 
+Document Folders (e.g. submissions versus PC members’ published works) into a 
+folder of matching statistics. The process involves all kinds of API methods. Also, 
+useful data and metadata can be obtained at each step in the process via methods such 
+as “profile items show”, “matches show”. In order to improve the functionality of 
+Subsift, I need to obtain the data of Document Folder items, Match Folder items; 
+delete and create Profile Folders and items, etc. 
+ 
+ 
+ 
+ 
+ 
+11 
+ 
+3.4 REST API Explorer  
+REST API Explorer (which is located at Home/Demos/REST API Explorer) is a 
+simple, but quite useful tool to try kinds of API methods. It shows you the HTTP 
+query sent to the server and the HTTP response returned. Figure 3 shows the interface 
+of creating document items in a specific Document Folder:  
+Figure 3 Create Document Folder items in REST API Explorer, Source: Subsift Website  
+From the figure above, we can see that apart from the URL string, two parameters are 
+needed: folder_id and item_list, additionally, token is added implicitly to the HTTP 
+header. Similarly, in the program, parameters are added to the URL String:  
+Figure 4 Post content into a specific folder, Source: my program 
+I import package HttpClient to help post content onto Subsift. Comparing figure 4 to 
+figure 3, we note that token is added using method.addRequestHead(); parameters are 
+added using method.addParameter(); and the status code is returned after the method 
+ 
+ 
+12 
+ 
+is executed by client.addParameter(), by which we can know whether the request is 
+processed successfully.  
+Hereafter is an example of HTTP GET method. Figure 5 shows the way to get the 
+content of a document item in REST API Explorer:  
+Figure 5 Get items’ information from a Document Folder, Source: Subsift Website 
+We note that parameter “full = 1” is added, which tells the server to include 
+the text data in the returned representation of the items (content between <text> and 
+</text> tags in figure 1, Document Folder). Using GET method, I can obtain all the 
+information that feedback processing algorithms need to analyze feedbacks. Figure 6 
+and figure 7 show how to obtain data from Subsift in my program:  
+Figure 6 Method getDocumentContext() 
+In method getDocumentContext(), the url string is formed, which includes all the 
+parameters (note that full = 1 is added). This string servers as the input parameter of 
+method getContent() in figure 7. In method getContent(), I import package 
+URLConnection to help get  content from Subsift. Comparing figure 7 to figure 5, 
+we note that token is added using conn.addRequestProperty() and the data returned is 
+converted into a string, which is returned to the calling method and later analyzed by 
+the feedback processing algorithms. I will introduce how to use the string in detail in 
+section 6 and section 7. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+13 
+ 
+Figure 7 Get Content from certain http address 
+Here I list some other API methods dealing with the Document Folder that I made use 
+of in the program. The way to create, update, destroy Profile Folder, Match Folder 
+and the items in those folders are much the same with Document Folder:  
+? Document Folder Create 
+HTTP Method:  POST 
+URL:  http://Subsift.ilrt.bris.ac.uk/user_id/documents/folder_id.format 
+HTTP Response: success: 201  
+? Document Folder Destroy  
+HTTP Method:  DELETE 
+URL:  http://Subsift.ilrt.bris.ac.uk/user_id/documents/folder_id/items.format 
+HTTP Response: success: 200 
+? Document Folder Update 
+HTTP Method:  PUT 
+URL:  http://Subsift.ilrt.bris.ac.uk/user_id/documents/folder_id.format 
+HTTP Response: success: 200 
+3.5 Improvement on Subsift Using Reviewers’ feedback 
+Vector Space Model is the theoretical basis of ranking reviewers for a specific 
+submission based on similarity. One of the shortcomings of this model is that 
+term-weights are empirically tuned and the model provides no theoretical basis for 
+computing optimum weights. “Learning to rank” is to use Machine Learning 
+techniques to train the ranking model in order to improve its effectiveness. Although 
+ 
+ 
+14 
+ 
+there are different training algorithms available to tackle different types of ranking 
+models, the outcomes of those algorithms are the same, which is a “Local Weight” 
+vector for terms in the profile of the reviewer giving feedback, we donate it:           . This 
+vector will be stored in the reviewer’s profile (see figure 1, Profile Folder, content in 
+between lable <wl></wl> which is circled by red line) and multiplied the next time it 
+is compared with the profiles of new incoming papers. Namely, after incorporating 
+“local weight” vector into reviewers’ profiles, the cosine similarity will be calculated 
+as follows:  
+s(
+?
+q ,
+?
+jd ) = cos(? ) = 
+||||*||||*||||
+**
+???
+???
+lwj
+lwj
+Vdq
+Vdq
+                 
+ 
+Note that an additional vector           is multiplied after the feedback information being 
+incorporated into reviewers’ profiles.  
+4 Main Working flow 
+There are mainly three approaches to dealing with different types of feedbacks. 
+Pointwise approach aims at solving the ranking problem of individual instances; 
+Pairwise approach targets the ground truth of pairwise preference; Listwise approach 
+tackles ranking for a list of instances with partial or total order. 
+Before Introducing 3 types of feedbacks in detail respectively, let us first have an 
+overview of the main working flow of the web-based application, which can be 
+illustrated by the figure below:  
+Figure 8 Working flow of my software 
+Please note that Feedback.jsp is actually the abbreviation of four jsp pages: 
+ActionPageOfGivingPointWiseFeeedback.jsp and 
+(4) 
+ 
+ 
+15 
+ 
+ActionPageOfCompletingPointWiseFeedback.jsp, ActionPageOfRenewedList.jsp and 
+ActionPageOfFinalCompletingFeedback.jsp. In the rest of this section, I will explain 
+the working flow, as well as showing the user interface on each step.  
+On the login page, the reviewer is required to input his name and select the type of 
+feedback he wants to give, as shown in figure 9:  
+Figure 9 Login Page 
+After clicking on one of the three buttons in Figure 9, the reviewer will be directed to 
+the feedback page, step 2, step 3 and step 4 in figure 8 will be completed at this stage. 
+Figure 10 shows the pointwise feedback interface: 
+Figure 10 Pointwise feedback Page 
+ 
+ 
+16 
+ 
+Clicking on the titles of papers in figure 10, the reviewer will be directed to a page 
+displaying the abstract of that paper (as shown in figure 11), which can help the 
+reviewer know better about those papers. Those abstracts are gotten from the 
+corresponding Document Folder items using http request as explained in section 3.4.  
+  Figure 11 Webpage including the abstract of a specific page after clicking on its title  
+If the reviewer selects “Discard Result of Previously Given Feedbacks” as shown in 
+figure 10, the result of previously given feedbacks stored in the reviewer’s profile will 
+be erased and completely replaced by the new given feedback result.  
+However, if the reviewer selects “Merge with Result of Previously Given 
+Feedbacks”, the information obtained from the newly given feedback will be merged 
+with previously obtained feedback information stored in the reviewer ’s profile to form 
+a new version of feedback information.  
+After selecting the top 3 and bottom 3 papers and clicking on the OK button, step 5, 
+step 6, step 7, step 8 and step 9 of figure 8 has been accomplished. The reviewer will 
+be provided the option to view the renewed paper ranking which is calculated after 
+taking his feedback into consideration: 
+Figure 12 Webpage providing the option to view the renewed paper ranking  
+After clicking on the button in figure 12, the reviewer will be directed to the following 
+page to give evaluation on the renewed ranked list: 
+ 
+ 
+17 
+ 
+Figure 13 Webpage inviting reviewer to give secondary feedback 
+After clicking on “ok” in figure 13, step 10, step 11 and step 12 of figure 8 are 
+accomplished. The whole feedback process is down after the reviewer gives his 
+secondary feedback, i.e. whether he is happy with the renewed ranking of papers. The 
+parameters of algorithms will be slightly altered according to the reviewer’s fee ling 
+about the renewed ranking, and then the “local weight” vector is calculated for one 
+more time, update the reviewer’s profile with this vector.  
+   In the following sections, I will explain the algorithms and code implementation 
+details to deal with 3 formats of feedbacks. In order to make it easier to understand, 
+let us first have an overview of the basic class structure and supportive classes.  
+5 Basic Class Structure 
+The class design follows a simple rule: a type of feedback will be tackled by a class, 
+PointWiseFeedbackProcessing.java is responsible for processing pointwise feedback, 
+and similarly, PairWiseFeedbackProcessing.java deals with pairwise feedback. 
+Listwise feedback can be either converted to pointwise feedback or pairwise feedback, 
+so that there is no need to have an extra class to deal with it.  
+There are many common procedures in processing different formats of feedbacks, 
+such as building Feedback Profile Folder, getting the content of Feedback Profile 
+Folder. Those actions are done by methods written in the super class 
+FeedbackProcessing.java to reduce code duplication. The inheritance relationship is 
+shown in figure 14. 
+ 
+ 
+ 
+ 
+ 
+18 
+ 
+Figure 14 Inheritance relationship  
+Apart from main feedback processing classes, there are many other supporting classes.  
+Terms are the basic elements for algorithms to deal with. An instance of class 
+TermInfo.java stores information of a term, the string representation is indispensable in 
+initializing a new term. Optional information is the unique code assigned to a term and 
+its it- idf value, which is quite essential in building training instances. Because 
+TermInfo.java is a basic supporting class, it will be initialized in various situations and 
+for different purposes. As a consequence, it has various constructors as shown in figure 
+15. 
+Figure 15 Class TermInfo.java 
+There should also be a class to store information of a “paper”, which is actually a term 
+list. This list can be the terms appearing in a Document Folder item, a Profile Folder 
+item, or a Match Folder item. Possible properties of a paper are: name, ID, rank, 
+context and its vocabulary list. Like class TermInfo.java, There are various 
+constructors for this class. Figure 16 shows the fields and methods in PaperInfo.java: 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+19 
+ 
+Figure 16 Class PaperInfo.java 
+Another supporting class SubsiftInteraction.java is responsible for the communication 
+between my program and Subsift. As explained in section 3.4, I use methods in class 
+URLConnection to get content of a folder (or a folder item) from Subsift website, as 
+well as post folders onto Subsift when it doesn’t involve parameters with value being 
+a long string. I use methods in class HttpClient to post content onto Subsift folders in 
+the case that the values of certain parameters are very long strings, such as the value 
+of “item_list” parameter when creating Profile Folder for reviewers.  
+Figure 17 Class SubsiftInteraction.java 
+Before posting content to a folder, dealingWithFolderNotExsitingPossiblity() will be 
+called. To judge whether such a folder exists, a GET request will be sent, if the status 
+code returned is 404, then it means such folder doesn’t exist. In this case, such a 
+folder will be created before posting content to it. Similarly, Before creating a new 
+folder, dealingWithFolderAlreadyExsitingPossibility() will be called. If the returned 
+status code of GET request is 200, it means such folder already exists. In this case, the 
+old folder will be deleted before posting a new folder with that name.  
+Another thing to note is that function postContent() needs a parameter list to obtain 
+all the parameters needed. Every (parameter name, parameter value) pair is an 
+instance of class PostParameter.java (see figure 18). 
+ 
+ 
+20 
+ 
+Figure 18 Class PostParameter.java  
+There are other classes, such as Prank.java, which is written to implement pointwise 
+prank algorithm; svm_train.java from external java library LIBSVM, which is 
+responsible for training the SVM instances in pairwise feedback processing. The 
+explanation for those classes will be given along the illustration of processing 
+procedures of each type of feedbacks.  
+  In the following sections, I will show the algorithms behind the user interface to 
+obtain and process 3 types of reviewer’s feedbacks. The first format of feedback is the 
+top n and bottom n papers selected by the reviewer from a ranked list of N papers 
+provided by Subsift to him, which is dealt with by an algorithm in pointwise approach 
+called “prank”. In the second type of feedback, the reviewer provides n pairs of papers 
+indicating they prefer the former ones to the latter ones. This is a typical pairwise 
+feedback, which will be converted to a SVM problem and solved by training 
+algorithm in LIBSVM. In listwise approach, a ranked list of n papers will be required 
+from the reviewers. This format of feedback can be solved either by Prank or 
+LIBSVM. 
+6 Feedback type 1 --- Top n and Bottom n Papers 
+After the top n and bottom n papers are selected by the reviewer, scores are assigned 
+to those papers, (top1, 20), (top2, 19), (top3, 18), , (bottom 3, 3), (bottom 2, 2),  
+(bottom1, 1). Those (instance, score) pairs are typical training instances for algorithms 
+in pointwise approach. First let me give explanation to Prank, the pointwise algorithm 
+I select to deal with the first type of feedback. It is not complicating, however, quite 
+effective.  
+6.1 Algorithm Explanation 
+Prank is a learning algorithm based on ordinal regression (see definition in section 
+2.2) which is motivated by the perceptron algorithm for classification. Here    is 
+from S = {1, 2, 3, , k} with the total order relation “>” [7].  
+The ranking rule H:    ? S combines perceptron weights          and threshold 
+vector     = (  , ...   ...,     ) with                 ,    is not included because 
+ 
+ 
+21 
+ 
+it is infinite. Given a new instance x, the rank is defined as the index of the smallest 
+threshold    for which             , thus all the instances that satisfies the condition  
+                   are assigned with the same rank r. Formally, given a ranking rule 
+defined by     and     the predicted rank of a instance x is [7]:  
+  H(x) =             {r:                }                         (5) 
+The objective of the PRank algorithm is to find a perceptron weight vector     and a 
+threshold vector     so that     will cast all the instances in the training set into the k 
+subintervals defined by    . It works in the rounds in which prediction mistake happens:  
+Figure 19 illustration of updating rule, Source: ref. [7] 
+On round t, the algorithm gets an instance        . It predicts a rank    and compares it 
+with the correct rank   . If        , it updates the ranking rule (namely, trim the value 
+of      and    ) to minimize the number of thresholds between     and    (the loss in 
+ordinal regression). The pseudo code is given in Figure 19 [7, 9]. Here we explain 
+step1, 2, 3 in Figure 13. For simplicity, we omit the index of round when referring to 
+an instance-ranking pair (   , y). Here we expand the rank y into k-1 virtual variables   , 
+  ,..,      and set    = +1 for the case                and    = -1 for the case              
+Therefore, the rank value indicates a vector    = (  ,,     ) = (+1, +1,  , -1, -1) for 
+which the maximum index r that satisfies    = +1 is y-1. And the prediction rule is 
+correct if                  ) > 0 for all r. However, if the ranking algorithm makes a 
+mistake by ranking    as  , (    y), namely, for all r,                 ) > 0, but for some r, 
+                )  0. Then there is at least one threshold for which the value of          is 
+at the wrong side of   . On the round where the mistake happens, We modify the 
+values of    for which                 )   0 by replace them with       . And we 
+replace     with            , where     donates the total number of thresholds between 
+  and y. The principle is shown in Figure 20 [7, 9]. 
+ 
+ 
+22 
+ 
+Figure 20 Illustration of updating    and    , Source: ref. [6] 
+Figure 21 illustration of updating rule, source: ref. [7] 
+Figure 21 gives an example of an updating round.  The correct rank y is 4, however, 
+the predicted rank    is 1, so that        ,    are sources of error, so their values are 
+replaced with                ,      .     is modified to be     + 3   . So that the inner 
+product of     and    increases by 3      . After the modification, the predicted rank is 3, 
+which is much closer to the correct rank [7].  
+We find that once we obtain     in formula (41) we can work out the scores of 
+incoming instances. Therefore this is the vector which we need to calculate from the 
+pointwise feedback and incorporate into the reviewer’s profile. 
+6.2 Software Implementation 
+JSP is a technology to dynamically generate web pages based on HTML. It allows 
+Java code to be interleaved with static web markup content with the resulting page 
+being compiled and executed on the server to deliver an HTML document.  The web 
+application to obtain reviewers’ feedbacks is implemented as JSP pages. Each page 
+initializes corresponding java classes and calls functions in those classes to realize the 
+functionality of that page.  
+6.2.1 Illustration for JSP Pages 
+There are five jsp pages involved to deal with pointwise feedback which are listed as 
+follow: 
+ 
+Update     Update    
+ 
+ 
+23 
+ 
+? index.jsp (see figure 9); 
+? ActionPageOfGivingPointWiseFeedback.jsp (see figure 10); 
+? ActionPageOfCompletingPointWiseFeedback.jsp (see figure 12); 
+? ActionPageOfRenewedList.jsp (see figure 13); 
+? ActionPageOfFinalCompletingFeedback.jsp.  
+The functionalities each jsp page implements are listed as below: 
+? Index.jsp (figure 9) 
+a) Display the components on login page using HTML, CSS. 
+b) Add onclick events to buttons to direct reviewer to the feedback page in based on 
+the feedback type he selected, pass parameters (reviewer’s first and last name) to 
+the next page.  
+? ActionPageOf GivingPointWiseFeedback.jsp  (figure 10) 
+a) Get parameters (reviewer’s first name and last name). 
+b) call static GetMatchFolderContent() in SubsiftInteraction.java (see figure 17) to get 
+the content of the Match Folder item of that reviewer and store it in a string, the 
+structure of returned string is shown in figure 22. 
+Figure 22 Content of Match Folder item Jamie Peng  
+Note that the documents in the Match Folder item Jamie Peng have already been 
+ranked by their match scores. So that we can get each document’s ID, description, 
+as long as its ranking in the match folder item of Jamie Peng from this string.  
+c) Call static buildPaperArrayFromMatchFolder() in FeedbackProcessing.java to 
+build an ArrayList from the string representation of the match folder content. Each 
+element is an object of class PaperInfo, figure 23 shows the pseudo code of this 
+function: 
+ 
+ 
+ 
+ 
+24 
+ 
+Figure 23 Pseudo code of function buildPaperArrayFromMatchFolder()  
+Note that we use the constructor PaperInfo(paperID, paperName, paperContext). 
+This constructor is specially designed to create instance for Document Folder items. 
+The ranking of each paper in the match folder item of reviewer Jamie Peng is just 
+its position in this ArrayList plus 1. 
+d) Creating an instance of class PointWiseFeedbackProcessing.java. Assign the paper 
+list gotten from step c to a static ArrayList<PaperInfo> static field top_n_papers of 
+class FeedbackProcessing.java (as shown in figure 27), so that it can be used by all 
+instances of FeedbackProcessing.java and its child calsses, Note that field 
+top_n_papers stores the information of Document Folder items, including their IDs, 
+Names, Context and rankings in the match folder item of the reviewer giving 
+feedback (see Table 2).   
+e) Display the ranked list of papers and the feedback frame (see figure 10).   As 
+explained in step b, the papers have been ranked in the Match Folder item, so that 
+just display the name of papers in the ArrayList top_n_papers in turn in the table.  
+Note that click on the title of a paper, the reviewer can access the abstract of that 
+paper (see figure 11). This is realized by using super link in html, the url 
+incorporates paper ID gotten dynamically during runtime using java code. 
+? ActionPageOfCompletingPointWiseFeedback (figure 12) 
+a) Get parameters (reviewer’s selection of top n and bottom n papers) and store    
+them in an ArrayList<Integer> named “rankList”.  
+b) Create an instance of class PointWiseFeedbackProcessing.java; Call function 
+go(ArrayList<Interger> rankList) with the “rankList” gotten from step a as  
+parameter. The process of building a “local weight” vector and incorporating it into 
+Subsift is done in class PointWiseFeedbackProcessing.java. The detailed 
+explanation can be found in section 6.2.2. 
+? ActionPageOfRenewedList.jsp (figure 13) 
+a) Create an instance of class FeedbackProcessing.java; get the first name and last 
+name of the reviewer which is stored in the static field of this class. 
+b) Get the Match Folder item content of this reviewer and store it into a string using 
+SubsiftInteraction.getMatchFolderContent(firstName, lastName). 
+c) Build a paper ArrayList<PaperInfo> by fetching information from the string gotten 
+ 
+ 
+25 
+ 
+from step b using static method buildPaperArrayFromMatchFolder(content) of 
+class FeedbackProcessing.java. 
+d) Display the list of papers in a table.  
+e) Display a feedback frame allowing the reviewer to give feedback on the renewed 
+ranked list. 
+? ActionPageOfFinalCompletingFeedback 
+a) Get the parameter of the radio boxes on ActionPageOfRenewedList.jsp which 
+represents the result of secondary feedback and assign a value to variable “opinion” 
+based on the string value of the parameter, as shown in figure 24: 
+ Figure 24 Select Double value for “opinion” based on value of parameter 
+b) Create an instance of class FeedbackProcessing.java; Call function 
+incorporateSecondaryFeedback(Double opinion) of the instance. This function is in 
+class FeedbackProcessing.java, which can be shared by both pointwise and 
+pairwire feedback processing approach when secondary feedback is given. the 
+pseudo code is shown as below: 
+Figure 25 pseudo code for function incorporateSecondaryFeedback() 
+Note that the part greater or less than 0.5 of local weight value for each term is 
+timed by “opinion”, so that the influence of the feedback is magnified or shrank 
+based on the reviewer’s evaluation of the renewed ranked list of papers.  
+6.2.2 Illustration for Class PointWiseFeedbackProcessing.java 
+ 
+ 
+26 
+ 
+First let us have an overview of fields and methods in 
+PointWiseFeedbackProcessing.java and its super class FeedbackProcessting.java. 
+They are shown in figure 26 and figure 27:  
+Figure 26 Class FeedbackProcessing.java 
+Figure 27 Class PointWiseFeedbackProcessing.java 
+One important thing to notice here is that I use data type ArrayList to store all kinds of 
+input information in classes dealing with feedbacks. This is because Arraylist is a n 
+extensible data type, so that no change will be needed to be made to the classes when 
+I try different numbers of input instances in the parameter optimization phase (see 
+section 9.3). Static Field feedbacks of class PointWiseFeedbackProcessing.java is an 
+ 
+ 
+27 
+ 
+ArrayList with elements of type PaperInfo.java. Each element stores the score of a 
+paper appearing in the reviewer’s feedback, as well as the paper’s ID and name. The 
+score of each instance is essential input of Prank algorithm.  
+For convenience’s sake, table 2 below gives illustration to static fields of class 
+feedbackProcessing.java, which can serve as a useful reference in later narration.  
+Name Illustration 
+ 
+PAPER_NUMBERS 
+Final static field to specify the number of papers gotten from 
+the Match Folder and displayed in the table in figure 9. 
+Currently the value is 20, namely, select top 20 papers from 
+the Match Folder item of this reviewer. 
+ 
+mergeResult 
+Boolean field to specify whether to merge newly obtained 
+feedback information with history feedback information. If 
+the value is false, then the previously obtained feedback 
+information will be discarded. 
+ 
+top_n_papers 
+An <PaperInfo> ArrayList to store information of a list of 
+document items. The information of each element includes 
+paper ID, paper name and paper context. The rank of each 
+paper in the Match Folder item of the reviewer giving 
+feedback is its position in this ArrayList + 1.  
+ 
+paperRanks 
+A <Integer > ArrayList to store the ranks of papers appearing 
+in the feedback. Knowing a paper’s rank, we can locate it in 
+ArrayList top_n_papers, so as to get the paper’s information.  
+ 
+vocabularyList 
+A <TermInfo> ArrayList to store information of all terms in 
+the Profile Folder which contains profiles of documents 
+appearing in the reviewer’s feedback. The information of each 
+element includes term’s string representation, and its tf- idf 
+value, which is initialized to be “0.5”.  
+ 
+selected_papers_list 
+A <PaperInfo> ArrayList to store information of papers 
+appearing in the feedback. The information of each element 
+includes paper ID and it is vocabulary list, with it_idf values 
+gotten from the profile of that paper.  
+ 
+usefulTermTable 
+A <String, Double> Hashtable to store terms and their local 
+weight values. This is the final outcome of the feedback 
+processing algorithm, which will be used to form the “local 
+weight” parameter value.  
+Table 2 explanation of static fields of class FeedbackProcessing.java 
+ 
+ 
+28 
+ 
+After calling function go() of a newly built PointWiseFeedbackProcessing.java 
+instance from ActionPageOfCompletingPointWiseFeedback.jsp, a list of functions in 
+go() will be executed, as shown in figure 28. I will give illustration to this list, as the 
+way to explain the pointwise processing procedure.  
+Figure 28 Function list in go() in class PointWiseFeedbackProcessing.java  
+? buildFeedbackArray(rankList): Function in PointWiseFeedbackProcessing.java 
+From step d in ActionPageOf GivingPointWiseFeedback.jsp, we have assigned an 
+ArrayList to the static field top_n_papers. For every number in the rankList, I can 
+find the corresponding paper in top_n_papers. So that I can create an instance of 
+class PaperInfo.java with the constructor PaperInfo(int rank, PaperInfo paperInfo) 
+and add it to the end of static ArrayList field feedbacks of class 
+PointWiseFeedbackProcessing.java (as shown in figure 23). Figure 29 shows the 
+code of this part: 
+ Figure 29 Function buildFeedbackArray() 
+The value of field listWiseFeedback specifies whether this rankList is from the 
+action page giving pointwise feedback or the action page giving listwise feedback. 
+ 
+ 
+29 
+ 
+The parts circled by the red line are the algorithms to decide ranks (or say, scores) 
+in Prank for top papers and bottom papers. The part circled by blue line is the 
+algorithm that determines scores for papers in listwise feedback, which I will 
+explain in section 8.  
+? buildFeedbackProfileFolder(“PointWise”): Function in FeedbackProcessing.java 
+This function is to build a Profile Folder for documents in ArrayList “feedbacks”.  
+The parameter feedbackType (“PointWise”) is used to specify the name of 
+Document Folder and Profile Folder: 
+     The Steps to build a Profile Folder are as follows: 
+a) Build a Document Folder for the documents appearing in field feedbacks using 
+static postFolder() in SubsiftInteraction.java 
+b) Post documents items into this folder using static postContent() in 
+SubsiftInteraction.java, the information needed to build document items 
+(including id, description, context) can be achieved from filed feedbacks. 
+c) Build Profile Folder from Document Folder using static postFolder() in 
+SubsiftInteraction.java 
+? getFeedbackProfileContent(“PointWise”): Function in FeedbackProcessing.java 
+This function is to get the content of the Profile Folder build in the last step using 
+getConent() method in class SubsiftInteraction.java as introduced in section 3.4. 
+After getting the string representation of the folder content, trim the string to get 
+rid of all folder ids which shouldn’t be included in the term vocabulary.  
+? buildVocabularyVector():Function in FeedbackProcessing.java 
+This function is to build an ArrayList for the vocabulary of the Profile Folder from 
+the string gotten from the last step and store it in the static field vocabularyList of 
+class FeedbackProcessing.java (see table 2).  
+? buildPaperList():Function in FeedbackProcessing.java 
+This function is to build an ArrayList for each profile item in the Profile Folder of 
+documents appearing in the reviewer’s feedback, and then store the list into a static 
+field of class FeedbackProcessing .java named selected_papers_list (see table 2). 
+The pseudo code is shown below: 
+ 
+ 
+30 
+ 
+Figure 30 Pseudo code of function buildPaperList () 
+From figure 30 we see that I first clone a vocabularyList that I built in the last step 
+which contains all terms appearing in the profile folder of feedback papers. Note 
+that every term in the cloned list is with the default tf- idf value 0.5. Then I traverse 
+the profile item string gotten from the Profile Folder of feedback papers, fetch each 
+term and its it-idf value v, locate the term in the cloned vocabulary list, set the 
+term’s it- idf value to be v + 0.5, for tf- idf values exceed 1 after the addition, they 
+will be trimmed to be 1; for terms with tf- idf values less than 0, they are assigned 
+with tf- idf value 0.. Note that vocabulary lists for feedback profile items are of the 
+same length (the length of the vocabularyList). For terms not appearing in one 
+profile item, the it- idf values would be the default value set in the last step (0.5) in 
+the ArrayList built for that feedback profile item. 
+  After building an ArrayList<TermInfo> for one paper in the feedback, a new 
+instance of PaperInfo.java will be created with constructor PaperInfo(String 
+papered, ArrayList<TermInfo> itemVocabularyList) to represent that paper and it 
+will be added to the static field selected_papers_list (see table 2). 
+? calculateFeedbackWeight(): function in PointWiseFeedbackProcessing.java 
+After the field selected_papers_list has been added with information of papers 
+from the feedback, we can now calculate the local weight vector using Prank. The 
+algorithm is completed by Prank.java. The pseudo code is shown in figure 
+31 ,where parameter vocabularyList of function go() is the weight vector     
+needed to be optimized in figure 19; parameter selected_papers_list stores the 
+training instances     and from parameter feedbacks we can obtain the score of 
+each training instance; in PrankPerRound(), the parameter settings are as follows 
+(see figure 19 for the definition of the parameters): k = 21, since there are 20 
+possible ranks; t =6, since there are 6 training instances gotten from the reviewer’s 
+feedback..  
+The prank algorithm has been explained thoroughly in section 6.1. What we 
+need to notice here is that after the local weight vector (vocabularyList) has been 
+ 
+ 
+31 
+ 
+calculated, the weight values needs to be tuned so that the influence of feedback on 
+the local weight would be reasonable and within the scope of [0, 1] as shown in the 
+red circled part of Figure 31. The terms with weight value of 0.5 are not included 
+in the usefulTermTable because all terms will be set to be the default value of 0.5 
+when rebuilding the profile of the reviewer, there is no need to add terms with 
+default value to the parameter “terms_weight”.  
+  After the weight values of terms in the vocabularyList resulting from the Prank 
+algorithm are tuned, the term list and the terms’ weight values are restored in a 
+static Hashtable<String, Double> field usefulTermTable of class 
+FeedbackProcessing.java.   
+Figure 31 Pseudo code for Class Prank 
+? IncorporateFeedbackIntoSubsift(): function in FeedbackProcessing.java 
+In this step, we need to update the local weights of terms in the reviewer’s profile 
+based on the usefulTermTable we’ve gotten from the last step.  
+Subsift API allows users to specify the local weights of certain terms when 
+creating Profile Folder from Document Folder (as shown in Figure 33). I make use 
+of this feature of Subsift, specify the local weights of terms and recreate the Profile 
+Folder of the reviewer using static function postContent() of class 
+SubsiftInteraction.java. The pseudo code is shown in figure 32:  
+ 
+ 
+ 
+ 
+ 
+32 
+ 
+Figure 32 pseudo code of incorporateFeedbackIntoSubsift()  
+Figure 33 Build Profile Folder with term weights in Subsift, Source: Subsift Website  
+The part circled by red line in figure 32 shows the way to merge new coming 
+feedback with previously given feedback. For each term in the usefulTermTable, see 
+whether it is in the table containing the terms in the reviewer’s profile. If so, then 
+judge from field mergeResult whether the reviewer wants to merge the newly 
+obtained feedback information with existing feedback information in the reviewer’s 
+profile. If so, the term will be assigned with the average of its value in the 
+usefulTermTable and the historical tf- idf value. 
+? rebuildMatchFolder(): function in FeedbackProcessing.java 
+This function is to rebuild Match Folder by matching the papers’ Profile Folder with 
+the updated reviewers’ Profile Folder using SubsiftInteraction.postFolder().  
+ 
+ 
+33 
+ 
+7 Feedback type 2 --- n ordered instance pairs  
+The learning algorithms in this approach is given a training set with linear ordering 
+(top m papers) as the base level information about the ranking task just like in the 
+pointwise approach; then the algorithm is also provided with information about which 
+pairs of instances in the training set should be ranked above or below each other as 
+feedback, in other words, pairwise feedback.  
+The classification model (such as ranking SVM in conventional approach) can be 
+trained with the pairwise feedback together with the linear ordering so that it will 
+result in a ranking that orders wrongly as few instances pairs in the feedback as 
+possible, which is referred to the problem of preference learning (PL) [13].  
+The algorithm I select to dealing with pairwise feedback is Ranking SVM, which is 
+a method making uses of Support Vector Machines (SVM) to building the 
+classification model [8].  
+7.1 Algorithm Explanation 
+In this section we first introduce SVM. Then we prove that ordinal regression problem 
+can also be expressed by the ordered instance pairs, so that pairwise feedback can be 
+processed by SVM. After that we will explain how to solve the problem of ordinal 
+regression using SVM based on training set with instance-ranking pairs. 
+7.1.1 SVM 
+An SVM represents instances as points in the space, which are mapped so that those 
+points are divided into two categories by a gap that is as wide as possible. New 
+examples are then mapped into that same space and predicted to belong to which 
+category based on which side of the gap they fall on.  
+7.1.1.1 Maximize Margin 
+As shown in figure 34, there are many lines that can separate two groups of points.  
+ 
+ 
+34 
+ 
+Our goal is to find a hyper-plane (H2 in figure 34) so that the points are divided with 
+the maximum margin. More formally [17]: 
+? Given data (        ), (         ), , (         ) 
+? Finding a separating hyperplane can be posed as a constraint satisfaction problem:  
+Any i    ( , n), find                
+                                
+                                
+                          
+                     
+? The margin of a classifier is defined as this: Take a hyper-plane(P0) that separates 
+the data; put a parallel hyper-plane (P1) on a point in class 1 closest to P0; put a 
+second parallel hyper-plane (P2) on a point in class -1 closest to P0; The margin is 
+the perpendicular distance between P1 and P2.     is prescaled so that the margin 
+between two categories is         (see the detailed explanation in figure 35) [17].  
+Figure 35 Margin for Canonical Hyperplane  
+Therefore the SVM constraint optimization problem becomes: minimize f:        
+so that g:       
+                    . This is a quadratic programming problem, 
+which can be solved by Lagrangian multiplier method.  
+7.1.1.2 Lagrangian formulation for linear separable case 
+To solve the QP-programming problem, we need to flatten f with superimposed 
+constraint g.This is shown vividly in the figure below: 
+(6) 
+ 
+ 
+35 
+ 
+Figure 36 find minimum value of f with constrain g, Source: ref.[17] 
+    From the Figure 36 we can see that f is minimized when the constraint line g is 
+tangent to the inner eclipse contour line of f. At the tangent solution P, gradient 
+vectors of f, g are parallel, or say, gradient of f must be in the same direction as g. 
+Therefore, the problem can be converted to: Looking for solution point P that meets 
+the parallel normal constraint                 and g( ) = 0. Combine those two 
+which will result in Lagrangian L, the derivative of which is required to be zero [17]: 
+L(   ) = f( )         where        = 0  
+In formula (7), partially derivates with respect to x recovered the parallel normal 
+constraint; partially derivates with respects to    recovers g(x) = 0. In general there is: 
+L(   ) = f( )      
+ 
+         
+In our case, f:        and g:       
+                  , substitute into formula (8): 
+L(       ) = 1/2      
+ 
+ –    
+ 
+                              
+At the saddle point of L(       ), it will reach its minimum value, there are [17, 18]:  
+ 
+  
+                      
+ 
+    
+               
+This gives the condition:           
+ 
+   ,           
+ 
+        
+Substitute into L(       ), it is now converted to the dual problem : 
+Maximize W(  ) =    
+ 
+    
+ 
+ 
+      
+ 
+   
+ 
+                         
+Subject to                                
+ 
+     . 
+Note that the constraints are replaced by constraints on the Lagrangian multipliers and 
+the training data will only occur as dot products [17, 18].  
+(7) 
+(8) 
+(9) 
+(10) 
+(11) 
+(12) 
+Dot product 
+ 
+ 
+36 
+ 
+The decision boundary separating two categories is expressed as: 
+                            Substitute            
+ 
+           
+Namely:               
+ 
+                        
+Instead of considering all points in the training process like linear regression or naïve 
+Bayes, in SVM, only “difficult points” close to the decision boundary will influence 
+the potimacy. Those points form the support vector, such as points on P1 and P2 in 
+figure 34. Formally, Support vector is         which satisfies                           = 0 
+[17, 18]. 
+7.1.1.3 Lagrangian formulation for nonlinear separable case 
+In reality, the training set is often noisy, namely, the instances are more likely to be 
+non- linear separable. The noisy problems are best addressed by allowing some 
+instances to violate the margin constraint. Those potential violations are represented 
+using slack positive slack variables             . This extension of SVM is called 
+“Soft Margin SVM” [17, 18].  
+    
+                                                                   
+                                                             
+  
+So that the constraint optimization problem becomes [17, 18]: 
+Given data (        ), (         ), , (         ) 
+Minimize P(        ) =  
+ 
+ 
+     
+ 
+ + C   
+ 
+      
+subject to:       
+                      ,       
+Because the data is no longer linear separable, we can’t use dot product                   
+directly as in formula (12). Imagine that there is a function   that maps that 
+non- linear separable data into a linear separable space as shown in figure 37 [17]: 
+Figure 37 Imaginary mapping function  , Source: ref. [17] 
+Then the dot product                in linear case can be replaced by                   in 
+(13) 
+(14) 
+(15) 
+ 
+ 
+37 
+ 
+non- linear case. Imagine there is a “kernel function” K such that K(         ) =         
+      , then we don’t need to know   explicitly. Actually there are such Kernel 
+functions, and the most commonly used one is RBF kernel, which can implement any 
+continuous decision boundary [19].  
+                     
+                   
+ 
+ 
+The corresponding dual formation of this soft-margin problem becomes [17, 18]: 
+Maximize W(  ) =    
+ 
+    
+ 
+ 
+      
+ 
+   
+ 
+                          
+  Subject to                                  
+ 
+     . 
+       can also be written as :                  
+                
+                   
+           
+The corresponding decision function becomes:  
+               
+ 
+                       
+7.1.1.4 Optimality Criteria for SVM problem  
+The problem left is to find the        
+      
+  that would maximize W(  ) in formula 
+(17). Here we present the optimality criteria in order to find     [18]. 
+  Let        
+      
+   be the products of derivative of formula (17), there is:  
+    
+        
+   
+     
+ 
+  
+ 
+ 
+     
+                   
+Assume that for all subscript i, there is     
+  <   , for all subscript j, there is     
+  > 
+  , where   ,    are defined in (18). Based on (i , j), we define  
+     
+      
+      as 
+[18]: 
+  
+     
+    
+                          
+                        
+                                
+  
+Where   is a positive and quite small. Now we will have: 
+     
+ 
+        
+ 
+  =    
+ 
+  
+    
+ 
+  
+         
+Note that    
+ 
+ is the solution for Maximize W(  ), so that         must be smaller than 
+(17) 
+(19) 
+(16) 
+(18) 
+(20) 
+(21) 
+(22) 
+ 
+ 
+38 
+ 
+     
+ 
+ , which means that     
+       
+  has to be less than 0, namely,     
+      
+ . Then e 
+obtain the following optimality criterion[18, 19]:  
+                           
+                   
+  
+Where               <     and                 >    . 
+The common situation is that there are always some   
+  which are between upper and 
+lower boundaries and the corresponding     
+  is on both sides of inequity, then there 
+is only one possible value for   [18, 19]:  
+                   
+    
+ 
+     
+ 
+           
+   
+      
+ 
+     
+ 
+              
+   
+  
+From formula(11) we have:          
+   
+ 
+             
+We pick:                        
+        
+Note that     ,   ,    above satisfies the constraints in formula (15).  
+Now we need to prove that optimatity criterions (23) and (24) are enough to minimize 
+P(   , b, ) and maximize W(  ) in the same time, namely P(    ,   ,   ) =      
+ 
+  (see 
+fomula (15) for definition of P(    ,   ,   ) ). A simple derivation using (20) gives [18]: 
+P(    ,   ,   )         =  C   
+  
+         
+   
+  
+    =      
+   
+ 
+ 
+  
+  
+     
+From (24) and (26), we can easily get that    
+    
+     
+ 
+                  
+    
+   
+  = 
+      
+   is always true, no matter   
+  is less than, equal to or greater than    . Then 
+we have [18]:  
+                   P(    ,   ,   )                  
+  
+    
+Substitute constraint      
+ 
+      to (28), we know that P(   
+ ,   ,   )        = 0 
+always holds, namely, P(    ,   ,   ) =      
+ 
+ .  
+Therefore the optimality criterions in (23) and (24) are enough for us to obtain (    , 
+  ,   ) that minimizes P(    ,   ,   ) and    
+ 
+ that maximizes W(   ). 
+7.1.2 Cast Preference learning as Ordinal Regression Problem  
+In the ordinary regression problem, the input space is           and the output space Y 
+= {  ,   ,     } with ordered rank “  ” . The training set S =              
+ . The mapping 
+(23) 
+(24) 
+(25) 
+(26) 
+(27) 
+(28) 
+ 
+ 
+39 
+ 
+relation H = {h:   -> Y}. This indicates an ordering “  ” on the input space by the 
+follow rule [8]: 
+                                         (  )    h(  )                              (29) 
+In this way, the ordinal regression problem turns to be finding the optimal h, so that 
+for all         , it results in minimum number of  (  )    h(  ), the case of 
+inversion resulting from h can be expressed by the risk function          : 
+                                                                                (30) 
+With:                      =    
+                                            
+                                           
+                                                               
+           
+As introduced in section 2.2, according to the ERM principle,    should minimize 
+the accumulated reversing risk        
+    . Applying to training set S, it can be done as 
+follows: 
+                                          
+     = 
+ 
+  
+       
+ 
+   
+                                   (31) 
+ : X   X  {-1, +1}, with elements of pairs of instances, derives from S as follows:  
+                              
+   
+   
+   
+                   
+                     (32) 
+                                           = sign (          )                          (33) 
+Where    
+   
+     
+   
+ donates the first instance and second instance of a pair.   is the 
+preference on them (+1 or -1). Now we deduce the empirical risk            
+      for set 
+   from the risk function        
+     for set S [8]:  
+                                                             
+       
+  
+ 
+        
+                         (34) 
+      
+ 
+ 
+ (            
+           
+          
+     
+    ) 
+= 
+ 
+ 
+ (         
+   
+     
+         
+     
+    )            
+The mapping function h for set S defines a mapping function p for set    in this way: 
+P(   
+   
+     
+   
+) =       
+   
+       
+   
+                          (35) 
+So that the empirical risk base on the      loss of the mapping p on the sample    is 
+equivalent to the empirical risk of mapping h on a sample S multiplying a constant 
+factor      which is unrelated to p or h. Therefore, the problem of ordinal regression 
+can be solved by classifying pairs of instances, in other words, preference learning  
+ 
+ 
+40 
+ 
+[8]. 
+7.1.3 Preference Learning based on SVM  
+We now introduce how to solve the problem of ordinal regression with preference 
+learning based on SVM and theory in the last section. The new training set   defined 
+by formula (25) can be represented as n labeled vectors [8]: 
+                                 
+   
+    
+   
+         
+                        (36) 
+We take    as training set and construct a SVM model that can sign label either  
+      or        to any vector    
+   
+    
+   
+, namely:         
+          . The 
+hyper-plane passing through each instance pair is defined as [8]: 
+                                  
+   
+    
+   
+           i =  ,2,,n            (37) 
+Using (37) as constraint, we apply QLP formulation to optimize the hyper-plane as 
+introduced in section 7.1.1.3: 
+                                    
+ 
+ 
+            
+ 
+                       (38) 
+As explained in section 7.1.1.3, (38) leads to the dual problem of finding the      , 
+which will result in: 
+                                    
+ 
+ 
+                                   (39) 
+Subject to                                  
+ 
+     . 
+Where   = (        ), Z = dig(  ),      =    
+       
+    
+ 
+   
+       
+     [8][20]. Note that 
+formula (39) is actually the matrix representation of formula (16). Solve the dual 
+problem using the optimality criterion in section 7.1.5, we can obtain the   . In reality, 
+SVM problem has been solved by many existing software, LIBSVM is the one I 
+choose to assist calculating the optimal weight vector, which I will introduce in 
+section 7.2.3.   
+After       is solved, the        can be solved by calculating the sum of the 
+differences of all the vectors from the training set    [20]: 
+                                               
+   
+    
+   
+                     (40) 
+Now we need to work out the position of hyper-planes (thresholds) based on the 
+known        and instances pairs in the training set. We first define a mapping 
+function set F so that for each mapping function h in H for training set S there will be 
+ 
+ 
+41 
+ 
+a U   F with [20]: 
+                       h(    ) =      U(    )   [       ,      ]                (41) 
+Figure 38 source: ref. [20] 
+As shown in figure 38, the optimal hyper-plane(     ) for rank    is in the middle of 
+the instances of    and      with minimum margin m(     ), formally [20]: 
+                           
+              
+                   
+    
+ 
+                    (42) 
+With    (      ,       ) = arg                                  
+                  
+       
+We find that        in formula (41) represents the rule of classifying instances into 
+different classes. Therefore this is the vector which we need to calculate from the 
+pairwise feedback and incorporate into the reviewer’s profile.  
+7.2 Software Implementation 
+The pairwise feedback processing procedure is symmetric to pointwise approach. 
+Although they adopt different algorithms, they share lots of things in common, such 
+as the functions in class SubsiftInteraction.java and FeedbackProcessing.java. I will 
+brush slightly over stuff that I explained in section 6 and focus on the distinct features 
+of pairwise feedback processing.  
+7.2.1 Illustration for JSP Pages 
+The reviewer needs to interact with 5 jsp pages in order to give pairwise feedback: 
+? index.jsp; 
+? ActionPageOfGivingPairWiseFeedback.jsp; 
+(a) mapping instances to axis u(x),             
+are hyper-planes.  
+(b) The margin of hyper-plane      is defined as 
+m(     ) =          
+   
+      
+   
+   
+(a) (b) 
+ 
+ 
+42 
+ 
+? ActionPageOfCompletingPairWiseFeedback.jsp; 
+? ActionPageOfRenewedList.jsp; 
+? ActionPageOfFinalCompletingFeedback.jsp.  
+The second and third jsp pages are specially written for pairwise feedback obtaining 
+and processing. 
+? ActionPageOfGivingPairWiseFeedback.jsp 
+Do the same thing as ActionPageOfGivingPointWiseFeedback.jsp does in section 
+6.2.1. The only difference is the layout of components in the frame, which is designed 
+for the reviewer to give pairwise feedback, as shown in the figure below: 
+Figure 39 Interface giving pairwise feedback 
+From figure 39 we know that the reviewer is invited to give 5 ordered pairs of papers 
+in the feedback frame.  
+? ActionPageOfCompletingPairWiseFeedback.jsp 
+a) Get parameters (reviewer’s selection of 5 ordered pairs of papers) and store them 
+in an static ArrayList<PaperPair> field named paperPairs of class 
+PairWiseFeedbackProcessing.java. PaperPair.java is a class to store the order 
+information of an ordered pair of papers. The class structure of class PaperPair is 
+shown in figure 40. 
+Figure 40 Class PaperPair.java 
+Field paperRank1 and paperRank2 stores the ranking of two papers in the Match 
+Folder item of the reviewer.   
+ 
+ 
+43 
+ 
+b) Create an instance of class PairWiseFeedbackProcessing.java; Call function 
+go(ArrayList<Interger> rankList) with the ArrayList gotten from step a as the 
+parameter. The process of building a local weight vector and incorporating it into 
+Subsift is done in class PointWiseFeedbackProcessing.java. The detailed 
+explanation can be found in section 7.2.2 
+7.2.2 Illustration for Class PairWiseFeedbackProcessing.java 
+Figure 41 shows the fields and methods in class PairWiseFeedbackProcessing.java  
+Figure 41 Class PairWiseFeedbackProcessing.java  
+Static field paperPairs stores n pairs of feedbacks, every element in Field 
+pairVocabularyLists stores SVM instances (see figure 40) created from the reviewers’ 
+pairwise feedback. 
+After calling function go() of a newly built PairWiseFeedbackProcessing.java 
+instance from ActionPageOfCompletingPairWiseFeedback.jsp, a list of functions in 
+go() will be executed, as shown in figure 42. 
+ 
+ 
+44 
+ 
+Figure 42 Function list in go() in class PairWiseFeedbackProcessing.java 
+SelectDistinctPaperIDs() is first called to get distinct IDs of papers appearing in the 
+reviewer’s feedback.  
+Then Function buildFeedbackProfileFolder() is called to get document content of 
+papers with IDs gotten from the last step and build Profile Folder for those papers 
+using information in field top_n_papers.  
+After that the content of the feedback Profile Folder is fetched by function 
+getFeedbackProfileFolderContent() and passed to buildVocabularyVector() to build a 
+vocabularyVector for the all terms appearing in the feedback Profile Folder, which is 
+stored in the static field vocabularyList.  
+Then buildPaperList() is called to build a list storing information of papers 
+appearing in the feedback, the information of each list element includes paper ID and 
+paper’ vocabulary. This list is stored in static field selected_papers_list.  
+Based on the selected_papers_list, a list of SVM_instances with the same length 
+can be formed by function buildPaperPairVocabularyLists(). After exporting the list 
+into a txt file, the SVM training algorithm will read the file, train the data and return a 
+result model. Function calculateWeightVector() extracts information from the model 
+to build the local weight vector.  
+At last, incorporateFeedbackIntoSubsift(); rebuildMatchFolder() will be called to 
+rebuild the Profile Folder of the reviewer with the local weight vector as parameter 
+and recreate the Match Folder by matching papers with the renewed reviewers Profile 
+Folder.  
+I will give detailed explanation to functions that only appears in pairwise feedback 
+processing.  
+? selectDistinctPaperIDs() 
+ 
+ 
+45 
+ 
+When giving pairwise feedback, the paper IDs in different pairs might overlap, for 
+example, for ordered paper pairs (1,2), (2,3), paper with ID 2 appears in both pairs. In 
+order to build paper list with distinct paper IDs, I implemented this function to select 
+distinct paper IDs from all feedback pairs.  
+? buildPaperPairVocabularyLists() 
+From formula (28), we know that the inputs of SVM training algorithm are SVM 
+instances, each instance consists of two parts:               
+   
+     
+    , i        .  
+The aim of this function is to build an ArrayList of SVM instances derived from the 
+pairwise feedback given by the reviewer. This ArrayList will be stored in a static field 
+named pairVocabularyLists of class PairWiseFeedbackProcessing.java. Each element 
+of field pairVocabularyLists is an instance of class SVM_Instance.java (figure 43 
+shows the class structure).  
+Figure 43 class SVM_Instance.java 
+In class SVM_Instance.java, field vocabularyList is designed to store      
+   
+     
+     
+and instanceClass is to store     . 
+The pseudo code of this function and its support function build_SVM_Instance() is 
+shown in figure 44 and figure 45. Note that we need to obtain a feedback paper’s 
+vocabulary information from its ranking in the Match Folder item of that reviewer, 
+since the input is paperPairs (remember that the elements of field paperPairs were 
+added on page ActionPageOfCompletingPairWiseFeedback.jsp, each pair contains a 
+pair of papers’ rankings in the Match Folder item of that reviewer). As shown in 
+figure 44, we first locate the paper’s ID in field top_n_papers which contains the 
+relationship between a paper’s ID and its ranking in the Match Folder item of that 
+reviewer; then obtain the paper’s vocabulary list from field selected_papers_list based 
+on the paper’s ID.  
+ 
+ 
+ 
+46 
+ 
+Figure 44 pseudo code of Function buildPaperPairVocabularyLists() 
+Figure 45 pseudo code of Function buil_SVM_Instance() 
+The part circled by blue line in figure 44 tells us that each pair produces two 
+SVM_instances: {1,     
+   
+     
+    } and {-1,     
+   
+     
+    }. Therefore, we would have 2*n 
+SVM instances if the reiviewer gives n pairs of feedbacks.  
+The part circled by red line in figure 45 is the code calculating the it-idf value of each 
+element in the term list of one SVM instance. Note that we add extra weight to terms 
+that with non-0.5 weight value in itemVocabularyList1 while with default weight value 
+in itemVocabularyList2. And then I less weight value of terms with non-0.5 weight 
+value in itemVocabularyList 2 while with default value in itemVocabularyList1. I 
+ 
+ 
+47 
+ 
+highlight those terms since they represent one of the biggest differences between these 
+two lists.  
+? exportPaperPairVocabularyListsToFile() 
+Since the input of SVM training algorithm is a txt file, we need to write the SVM 
+instances in ArrayList pairVocabularyLists into a file, one instance per line with the 
+class label going first, as shown in figure 46. 
+Figure 46 exported txt file content 
+? svm.start() 
+I use SVM training algorithm in an external Java library named LIBSVM to train the 
+data, obtain the prediction model, and form weight vector in formula (40) using that 
+model. The working principle, parameter selection for LIBSVM can be found in 
+section 7.2.3. 
+? calculateWeightVector() 
+In the result model of the SVM training algorithm, field SV stores n support vectors 
+(n is the number of input SVM instances); field sv_coef stores the class label for each 
+support vector. The way to calculate local weight vector from SV and sv_coef is 
+shown in figure 47. 
+Figure 47 Calculate local weight wector from SVM prediction model 
+ 
+ 
+48 
+ 
+The optimal weight vector is calculated using formula (44). However, the weight 
+values gotten from formula (44) are not within the range of [-1, 1]. The part circled by 
+red line in figure 44 is trim the weight values so that they will be shrank within the 
+range of [0, 1]. 
+7.2.3 Illustration for LIBSVM 
+LIBSVM is a library for support vector machines, which is currently one of the most 
+popular SVM software. A typical use of LIBSVM involves two steps: first, training a 
+data set to obtain a model; second, predict classification result of testing set using the 
+model. In my project, pairvocabularyLists serves as the training set, I use LIBSVM to 
+train the data and obtain the result model. Then I can construct local weight vector 
+from that model and incorporate it into Subsift [19]. 
+  LIBSVM supports various SVM formulations for classification, regression and 
+distribution estimation, such as C-SVC v-SVC, One-class SVC, etc. From [23], we 
+know that C-SVC is specially designed to solve SVM problem in formula (27), 
+namely, the dual problem in formula (16) with decision boundary of formula (17). 
+Therefore, C-SVC would be the svm type I select to train pairvocabularyLists. 
+  The working principle of C-SVC is much the same with what I’ve described in 
+section 7.1.1.4 and 7.1.1.5. The main difference is that LIBSVM is written as the 
+minimization of -W(  ) instead of maximization of W(   ) and the variable G[i] in the 
+source code contains     instead of   . LIBSVM’s stop criterion is slightly different 
+with formula (23) [18]:  
+                                 
+Where               <     and                 >     as in (23) and   is a predefined accuracy 
+.  The training result of LIBSVM is a model with structure shown in figure 48. 
+Figure 48 Fields in class svm_model.java 
+Where nr_class is the number of classes, in our case, the value is 2, since we have two 
+(43) 
+ 
+ 
+49 
+ 
+classes {1, -1}. Field l is the number of support vectors, Suppose we have n pairs of 
+feedbacks, the value of l will be 2*n, since we build 2*n SVM instances from n pairs 
+of feedbacks. SV and sv_coef are support vectors and corresponding coefficients. 
+Field label stores the label of each class and field nSV stores the number of support 
+vectors for each class. In our case, label[0] = 1, label[1] = -1, nSV[0] = n, nSV[1] = n.  
+  Recall the way to calculate the optimal weight vector in formula (40), we substitute 
+sv_coef and SV from svm_model into it, there is: 
+                                              
+ 
+      
+Formula (44) is the algorithm to calculate local weight vector in figure 47.  
+8 Feedback type 3 --- Full list of n papers 
+In this type of feedback, the reviewer will provide a full ranked list of top n papers. The user 
+interface is shown as below:  
+Figure 46 Interface of listwise feedback 
+There is no algorithm specially designed to tackle this type of feedback, instead, a full 
+ranked list of paper can be either converted into the format of pointwise feedback or 
+pairwise feedback based on the preference of the reviewer, then the feedback will be 
+processed by PointWiseFeedbackProcessing.java if “Process as PointWise Feedback” 
+is selected in figure 46, otherwise, the listwise feedback will be processed by 
+PairWiseFeedbackProcessing.java.  
+? Convert full ranked list to pointwise feedback 
+a) Get parameters (reviewer’s selection of full ranked list of papers’ IDs) and store 
+them in an ArrayList named “rankList”.  
+b) Set the static field listWiseFeedback of PointWiseFeedbackProcessing to be true.  
+c) Create an instance pointWiseFeedbackProcessing of class 
+PointWiseFeedbackProcessing.  
+(44) 
+ 
+ 
+50 
+ 
+d) Call function go() of variable pointWiseFeedbackProcessing.  
+The place in PointWiseFeedbackProcessing.java specially written to convert 
+listwise feedback is in function buildFeedbackArray() (as shown in figure 29). The 
+ranking of each paper in prank algorithm is (i + 1), where I is the position of that 
+paper in the full list provided by the reviewer.  
+? Convert full ranked list to pairwise feedback 
+A full list of n paper can result in n-1 ordered pairs of papers. In this way, the listwise 
+feedback is converted into pairwise feedback, the code is shown in the figure below:  
+Figure 47 Convert listwise feedback to pairwise feedback 
+The perfect way to convert listwise feedback to pairwise feedback should be 
+constructing n pairs of feedbacks from the full ranked list of n papers, namely 
+(paper1, paper2), (paper1, paper3), , (paper n-1, paper n). However, in that case, 
+the processing time would be intolerably long since there would be n(n+1)/2 pairs and 
+n(n+1) SVM instances. Therefore I adopted a simpler way (see figure 47) to convert 
+listwise feedback to pairwise feedback which will result in less SVM instances, 
+however, it will lose some ranking information of the full list. This is one of the place 
+where future improvement can be made, namely, find a way to make use of full 
+information from the feedback list while keeping the running time short enough.  
+9Algorithm Evaluation and Parameter Optimization 
+There are mainly two ways to evaluate the effectiveness of the feedback processing 
+algorithm, the first one is the evaluation given by the reviewer, while the second one 
+is done by an evaluation model designed by me.  
+9.1 Evaluation from Reviewer 
+The first type of evaluation is on the next to last jsp page 
+ActionPageOfRenewedPointWiseList.jsp (figure 13). Since the reviewers’ feedbacks 
+are noisy, I adjust the influence of their feedbacks on the “local weight” vector based 
+on their own evaluation on the renewed ranked list of papers.  
+ 
+ 
+51 
+ 
+For example, if the reviewer selects “Very Satisfied” on 
+ActionPageOfRenewedPointWiseList.jsp, the reviewers’ Profile Folder will be 
+updated as shown in figure 24 with the parameter opinion = 4. In this way, the 
+influence of this reviewer’s feedback on the local weight vector will be strengthened 
+by 4 times. However, if the reviewer selects “Very Unsatisfied”, the influence of 
+feedback will be weakened to 0.1 times of the previous value.  
+9.2 Evaluation Model  
+The model will be explained in 3 parts: the steps to obtain ideal ranking list and give 
+feedbacks to the imperfect list according to the ideal list; the algorithm to evaluate the 
+closeness of the renewed list and the ideal list after incorporating feedback; and the 
+evaluation result on the effectiveness of the processing algorithms obtained from the 
+model.  
+9.2.1 Evaluation Steps  
+The second type of evaluation is done with the steps shown as follow:  
+Step 1: Build an ideal paper list which is Subsift-reproducible.  
+1) Create a local weight vector with terms being those appearing in reviewer Jamie 
+Peng’s profile; Set the “local weight” of each term to be a random value between 
+[0,1]. 
+2) Recreate reviewers Profile Folder with the “local weight” vector gotten from    
+step 1) as the value for parameter terms_weight; rebuild Match Folder from papers’ 
+Profile Folder and the renewed reviewer’ Profile Folder.  
+3) Get and record the ranked list of paper of Jamie Peng on jsp page: 
+ActionPageOfGivingPointWiseFeedback.java. We call it the “ideal list”, which is 
+definitely reproducible by Subsift. 
+Step 2: Build the paper list to which we will give feedback.  
+1) Rebuild the Profile Folder of Jamie Peng without specifying value for parameter 
+terms_weight;  
+2) Rebuild Match Folder from Profile Folder of reviewers and papers 
+3) Get the ranked list of paper of Jamie Peng on jsp page: 
+ActionPageOfGivingPointWiseFeedback.java. We call it the “imperfect list”.  
+Step 3: Give feedback to the imperfect list based on the ideal list 
+For PointWise feedback, Find the top n and bottom n papers’ names in the ideal list; 
+Locate those papers in the imperfect list; Give feedback with rankings of those papers.  
+ 
+ 
+52 
+ 
+For example, in the ideal list, the top 3 papers’ names are doc 8, doc 10 and doc 5. 
+In the imperfect list, the rankings of doc 8, doc 10 and doc 5 are 2, 4, 6. Then in the 
+feedback frame, we select papers with rankings 2, 4, 6 to be the top 3 papers. In the 
+same way, we select the bottom 3 papers.  
+For PairWise feedback, find 5 pairs of papers in the imperfect list with orders 
+different from ideal list; Give these pairs with orders in the ideal list as feedback to 
+the imperfect list.  
+For example, in the ideal list, doc4 ranks higher than doc3, while in the imperfect 
+list, doc4 ranks lower than doc 3. Therefore one feedback pair for the imperfect list 
+can be (doc4, doc3), which indicates that doc4 should be preferred over doc3 
+according to the ideal list we intend to produce.  
+Step 4: View the renewed list, see how close the list is to the ideal list after 
+incorporating the feedback, so as to evaluate the effectiveness of the feedback 
+processing algorithm.  
+9.2.2 Evaluation Algorithm  
+The problem left is to design algorithms to evaluate numerically the closeness of the 
+ideal list and the renewed imperfect list.  
+Assume that the reviewer is asked to give feedback of top n and bottom n paper to a 
+ranked list of m papers. A paper ranks k in the ideal list while ranking i in the 
+imperfect list. After incorporating the feedback, in the renewed list that paper ranks j. 
+Then the improvement of closeness of the imperfect list after incorporating feedback 
+to the ideal list can be measured as below: 
+    
+            
+   
+ 
+        
+    In the formula above, (m-1) is the longest distance between two papers in the list, 
+which serves as the distance “reference frame”. |k- i| donates one paper’s difference of 
+ranking in the imperfect list and in the ideal list. |k-j| donates one paper’s difference of 
+ranking in the renewed list and in the ideal list. If |k-j| < |k-i|, the improvement of 
+ranking accuracy of that paper will be positive, otherwise it will be negative, which 
+means the paper ends up with a rankings further from where it ranks in the ideal list 
+after incorporating feedback.  
+Also note that              is divided by (m-1). This is to make the ranking 
+accuracy improvement proportional with the size of the list.  
+The accuracy improvement percentage I serves as the measurement of the 
+effectiveness of feedback processing algorithms.  
+(45) 
+ 
+ 
+53 
+ 
+9.2.3 Evaluation Result  
+In pointwise processing algorithm, give feedback of top 3 and bottom 3 papers, do 10 
+rounds of evaluation following the steps in 9.2.1 and calculate the result us ing formula 
+(45), table 3 shows the experiment result:  
+ 
+Expriment 
+Number 
+ 
+1 
+ 
+2 
+ 
+3 
+ 
+4 
+ 
+5 
+ 
+6 
+ 
+7 
+ 
+8 
+ 
+9 
+ 
+10 
+ 
+AVG  
+ 
+STDEV 
+Improvement 
+In Accuracy 
+(%) 
+ 
+3.31 
+ 
+1.92 
+ 
+3.58 
+ 
+3.03 
+ 
+3.27 
+ 
+3.59 
+ 
+4.08 
+ 
+2.46 
+ 
+3.02 
+ 
+3.23 
+ 
+3.25 
+ 
+0.8  
+Table 3 Experiment Result of assessing pointwise processing algorithm 
+Table 3 tells us that although the improvement is not significant, the ranking result 
+gets closer to the ideal ranking after incorporating reviewers’ feedback.  
+We can also notice that the highest accuracy improvement is 4.08% and the lowest 
+one is 1.92%, and the standard deviation of 10 times’ experiments is 0.8 %. The 
+instability of accuracy improvement partly results from the randomness of the ideal 
+list. In some rounds of experiments, the ideal list produced is quite close to the 
+imperfect list, in those cases, the improvement in accuracy can’t be high even if the 
+renewed list gets to be much the same with the ideal list. However, in some 
+experiments, the ideal list is quite different from the imperfect list, so that the 
+improvement in accuracy is possible to be high.  
+In pairwise processing algorithm, give 5 ordered pair of papers as feedback, do 10 
+rounds of evaluation following the steps in 9.2.1 and calculate the result using formula 
+(45), table 4 shows the experiment result: 
+ 
+Expriment 
+Number 
+ 
+1 
+ 
+2 
+ 
+3 
+ 
+4 
+ 
+5 
+ 
+6 
+ 
+7 
+ 
+8 
+ 
+9 
+ 
+10 
+ 
+AVG  
+ 
+STDEV 
+Improvement 
+In Accuracy 
+(%) 
+ 
+3.31 
+ 
+2.58 
+ 
+2.19 
+ 
+2.51 
+ 
+3.73 
+ 
+2.46 
+ 
+2.39 
+ 
+2.10 
+ 
+2.82 
+ 
+1.69 
+ 
+2.58 
+ 
+0.59 
+Table 4 Experiment Result of assessing pairwise processing algorithm 
+Comparing table 4 to table 3, we find that the improvement in ranking accuracy after 
+processing feedbacks of 5 pairs of ordered papers is lower than the improvement after 
+processing feedback of top 3 and bottom 3 papers. We can’t say that Prank is better 
+than Ranking SVM since the former type of feedback carries more information than 
+the latter one, since we can obtain 6 pairs of ordered papers from the former type of 
+feedback. We also can’t determine that Ranking SVM is more stable than Prank based 
+ 
+ 
+54 
+ 
+on the standard deviation because of the interference of the randomness of the ideal 
+list.  
+Table 5 shows the evaluation results of processing listwise feedback using Prank 
+and Ranking SVM respectively.  
+ 
+Expriment 
+Number 
+ 
+1 
+ 
+2 
+ 
+3 
+ 
+4 
+ 
+5 
+ 
+6 
+ 
+7 
+ 
+8 
+ 
+9 
+ 
+10 
+ 
+AVG  
+ 
+STDEV 
+Prank(%) 8.42 9.01 8.56 8.92 9.30 9.02 7.26 8.49 9.52 7.72 8.62 0.70 
+Ranking 
+SVM(%) 
+ 
+3.67 
+ 
+3.56 
+ 
+3.29 
+ 
+4.80 
+ 
+3.32 
+ 
+3.35 
+ 
+4.92 
+ 
+3.32 
+ 
+3.85 
+ 
+5.34 
+ 
+3.94 
+ 
+0.78 
+  Table 5 Experiment Result of processing listwise feedback using two algorithms 
+In Table 5 we can see that Prank is more stable than Ranking SVM since it has 
+smaller standard deviation value. the performance of Prank is better than Ranking 
+SVM on the same training set. This is partly because of the way I construct instance 
+pairs, which doesn’t carry full information of that list (as I have explained at the end 
+of section 8). Also, I give another direction in improving pairwise processing 
+algorithm in section 10.2. 
+9.3 Parameter Optimization 
+Note that in pointwise approach we can give feedback of top n and bottom n papers, 
+here we test the improvement in ranking accuracy by setting n to be 3, 4, 5. Here we 
+also run the evaluation model for 10 rounds. The result is shown in table 6: 
+ 
+ 
+ 
+1 
+ 
+2 
+ 
+3 
+ 
+4 
+ 
+5 
+ 
+6 
+ 
+7 
+ 
+8 
+ 
+9 
+ 
+10 
+Average 
+Improvement 
+In Accuracy 
+n = 3 3.31 1.92 3.58 3.03 3.27 3.59 4.08 2.46 3.02 3.23 3.25% 
+n = 4 4.02 3.49 4.57 4.73 5.81 6.54 5.02 5.33 4.15 4.88  4.95% 
+n = 5 9.97 7.83 9.64 8.26 9.38 8.89 10.32 8.82 9.67 8.94  9.17% 
+Table 6 Parameter optimization of pointwise processing algorithm 
+From Table 6, we know that as the reviewer gives more information about the ideal 
+list, the renewed list gets closer and closer to the ideal list. This is logically correct, 
+which proves the effectiveness of Prank algorithm from another aspect.  
+  We also need to note that although the improvement in accuracy given different 
+ideal lists while fixing the number of input instances (see every row in table 6) varies 
+a lot, the improvement in accuracy increases stably as the number of number of inputs 
+increases given the same ideal list (see every column in table 6). This shows that 
+without the interference of the randomness of the ideal list, the performance of Prank 
+Test 
+ NO 
+Evaluation 
+Result% 
+Parameter 
+ 
+ 
+55 
+ 
+is stable.  
+Based on the experiment result above, I decided to ask the reviewers to give top 5 
+and bottom 5 papers as the feedback. I rearranged the components on jsp page and 
+changed the input to the algorithm. Since I used arraylists instead of arrays to store 
+information, I needn’t to change any part of classes dealing with pointwise feedback, 
+although the number of input instances has been changed. 
+In pairwise approach we can give feedback of n pairs of papers, here we test the 
+improvement in ranking accuracy by setting n to be 3, 5, 7. Run the evaluation model 
+for 10 rounds. The result is shown in table 7: 
+ 
+ 
+ 
+1 
+ 
+2 
+ 
+3 
+ 
+4 
+ 
+5 
+ 
+6 
+ 
+7 
+ 
+8 
+ 
+9 
+ 
+10 
+Average 
+Improvement 
+In Accuracy 
+n = 4 2.31 2.28 2.19 2.31 1.25 3.16 2.23 2.31 2.27 2.15 2.25% 
+n = 5 3.31 2.58 2.19 2.51 3.73 2.46 2.39 3.10 1.82 1.69 2.58% 
+n = 6 2.58 3.32 2.64 2.91 3.12 3.13 2.01 2.49 2.48 2.90  2.76% 
+Table 7 Parameter optimization of pairwise processing algorithm 
+From Table 7, we find that there will be improvement in accuracy after increasing the 
+number of feedback pairs, although the improvement is not as obvious as in pointwise 
+approach. This is understandable since the information carried by per isolated 
+feedback pair can’t compare with the information carried by increasing two elements 
+in an ordered list.  
+  From columns of table 7, we know that the performance of Ranking SVM is not 
+stable, since for some columns (such as column 6, 9, 10), the improvement in ranking 
+accuracy decreases while increasing the number of training instances.  
+10 Future Work 
+Larger scale of experiments can be done in the future to test the robustness and 
+effectiveness of the software. Apart from that, there are several aspects in the software 
+where future improvements are needed, including parameter optimization, input 
+inspection, interface optimization, parameter optimization etc.  
+10.1 Larger Scale Experiment 
+Currently in the reviewers’ Profile Folder, there is only one item “Jamie Peng”, and in 
+the papers’ Profile Folder, there are 20 paper items. This means that, at present, we 
+can only input “Jamie Peng” on the index.jsp.  
+All experiments are done upon this scale of testing data. In section 9.2.3, I produce 
+Evaluation 
+Result 
+Parameter 
+Test 
+ NO 
+ 
+ 
+56 
+ 
+n different ideal lists by setting random local weight values to the terms in profile of 
+Jamie Peng for n times and then recreate the Match Folder for reviewers’ profile 
+folder and papers’ profile folder.  
+  Larger scale experiment needs more reviewers’ document items and papers 
+document items to be added to the “reviewers” Document Folder and “papers” 
+Document Folder. After that, “reviewers” Profile Folder and “papers” Profile Folder 
+need to be rebuilt. At last, “pc_reviewer” Match Folder can be recreated with ranked 
+list of papers for more reviewers. Then reviewers with their match items existing in 
+the Match Folder can try the application with inputting their own names.  
+  I didn’t ask more people to try the application since I think automatic evaluation 
+done in section 9 can assess the effectiveness of the application objectively. I can 
+evaluate the closeness of the improved ranked list after incorporating feedback with 
+the ideal list precisely without the interference of unpredictable (may be unreasonable) 
+subjective factors from human beings. Although my experiment avoids being 
+influenced by the noisiness of reviewers’ feedbacks, I take the noisiness into 
+consideration by incorporating the reviewer’s evaluation on the renewed list into 
+Subsift (as shown in section 9.1).  
+10.2 Parameter optimization  
+In LIBSVM, There are other parameters can be optimized before training besides the 
+type of svm. LIBSVM provides a simple tool grid.py to check a grid of parameters. 
+From each parameter setting, LIBSVM obtains cross validation accuracy. In the end, 
+the parameter setting with the highest accuracy will be returned. The tool assumes that 
+RBF kernel (Gaussian in Figure 35) is used. In RBF kernel, r is the parameter which 
+can be optimized. Note that in formula (27), C is the parameter available for 
+optimization. So that the parameter setting turns to be (C , r). Since I didn’t find the 
+way to call python function in java code, those parameters haven’t been optimized 
+beforehand in my application. This can be a good direction to improve the 
+effectiveness of pairwise feedback processing algorithm in the future [19].  
+10.3 Input Inspection  
+On the feedback receiving interfaces (as shown in figure 10, figure 39, and figure 46), 
+I used dropdown boxes to enable reviewers to give their feedbacks. However, I didn’t 
+do parameter inspection for inputs, so that the application will not give any warning 
+on invalid inputs. Here are some invalid inputs that we need to tackle properly.  
+When the reviewer gives pointwise feedbacks, we need to check whether the input 
+numbers of top n papers and bottom n papers are distinct. Although inputting 
+feedback with duplicating elements will not cause crash of the program, it is logically 
+ 
+ 
+57 
+ 
+insane.  
+When the reviewer gives pairwise feedbacks, apart from checking whether there are 
+duplicating pairs, we also need to check whether he provides invalid feedback pairs. 
+For example, the reviewer gives three pair of feedback (doc2, doc3), (doc 3, doc4), 
+(doc4, doc2), we note here that if doc2 if preferred over doc3, and doc3 over doc4, 
+then it is impossible for doc4 to be preferred over doc2.  
+10.4 Interface Optimization 
+The listwise feedback receiving interface can be designed in a more user- friendly way. 
+We can enable the reviewer to move the title of papers around to form the full ranked 
+list of papers. For example, if he wants paper “A Tutorial on Support Vector 
+Machines for Pattern Recognition” to rank 1st, he simply move that title on top of 
+other titles. This can not only bring convenience to the user, but also avoid the risk of 
+having duplicating items in the feedback list.  
+11 Conclusion 
+One direction to improve the matching functionality of Subsift is to incorporate 
+reviewers’ individual preference information from their feedbacks. After studying 
+closely of algorithms available in the field “learning to rank”, I designed 3 formats of 
+feedbacks for the reviewers to give, implemented user interfaces, as well as the 
+algorithms behind to process the feedbacks and incorporate the result into Subsift. The 
+result of evaluation demonstrates that the feedback processing algorithms are effective, 
+since the renewed ranking list produced after incorporating reviewer’s feedback got 
+closer to the ideal ranking list.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+58 
+ 
+Bibliography 
+[1] Simon Price, Peter A. Flach, Sebastian Spiegler, Subsift: a novel application of the vector 
+space model to support the academic peer review process,Workshop on Applications of 
+Pattern Analysis (WAPA 2010), Windsor, UK. ISSN 19387228, pp. 20–27. September 
+2010. 
+[2] S. Kramer, G. Widmer, et al. Prediction of ordinal classes using regression trees. 
+FundamentaInormaticae, 2000. 
+[3] R. Nallapati, Discriminative model for information retrieval, SIGIR, 2004. 
+[4] Ponte, J. M. and Croft, W. B, A Language Modeling Approach to Information Retrieval, 
+ACM SIGIR, 275-281, 1998. 
+[5] Robert Malouf, et al. A comparison of algorithms for maximum entropy parameter 
+estimation,http://delivery.acm.org/10.1145/1120000/1118871/p18-malouf.pdf?key1=1118
+871&key2=2716394031&coll=DL&dl=ACM&ip=137.222.230.14&CFID=21910382&C
+FTOKEN=46984588 
+[6] Tie-Yan Liu. Learning to ranking for information retrieval, 
+http://research.microsoft.com/en-us/people/tyliu/letor-tutorial-sigir08.pdf 
+[7] K. Crammer, Y. Singer, PRanking with ranking, NIPS, 2002. 
+[8] R. Herbrich, T. Graepel, et al. Support Vector Learning for Ordinal Regression, ICANN 
+1999 
+[9] F. Harrington. Online ranking/collaborative filtering using the perceptron algorithm, ICML, 
+2003 
+[10] A. Shashua, A. Levin, Ranking with large margin principle: Two approaches, NIPS, 
+2002. 
+[11] Y. Freund, R. Iyer, et al. An Efficient Boosting Algorithm for Combining Preferences, 
+JMLR, 2003. 
+[12] Z. Cao, T. Qin, et al. Learning to Rank: From Pairwise to Listwise Approach, ICML, 
+2007. 
+[13] F. Xia. T.-Y. Liu, et al. ListwiseApproach to Learning to Rank –Theory and Algorithm, 
+ICML, 2008. 
+[14] G. Salton, A. Wong, and C. S. Yang, “A vector space model for automatic indexing,” 
+Commun.ACM, vol. 18, no. 11, pp.613–620, 1975. 
+[15] R. T. Fielding and R. N. Taylor, Principled design of the modern web architecture, ACM 
+Transactions on Internet Technology, vol. 2, pp. 115–150, May 2002. 
+[16] Simon Price, Peter Flach, Sebastian Spiegler, Christopher Bailey, Nikki Rogers, Subsift 
+web services and workflows for profiling and comparing scientists and their published 
+works, The 6th IEEE International Conference on e-Science (e-Science 2010), Brisbane, 
+Australia. ISBN 9780769542904, pp. 182–189. December 2010. 
+[17] R. Berwick, An Idiot's guide to Support vector machines (SVMs), 
+http://www.cs.ucf.edu/courses/cap6412/fall2009/papers/Berwick2003.pdf  
+ 
+ 
+59 
+ 
+[18] L e´on Bottou, Chih-Jen Lin. Support Vector Machine Solvers, 
+http://mitpress.mit.edu/books/chapters/0262026252chap1.pdf  
+[19] Chih-Chung Chang, Chih-Jen Lin. LIBSVM: A Library for Support Vector Machines, 
+https://cs.nmt.edu/~kdd/libsvm.pdf 
+[20] Christopher J.C. Burges. A Tutorial on Support Vector Machines for Pattern Recognition, 
+Data Mining and Knowledge Discovery, 2, 121–167, 1998. 
+[21] Roger Hartley. Liner and Nonlinear Programming: An Introduction to Linear Methods in 
+Mathematical Programming, 1985. 
+[22] Mokhtar S.Bazaraa, C.M.Shetty. Nonlinear Programming, 1979. 
+[23] D. Cossock, and T. Zhang, Subset ranking using regression. COLT, 2006. 
+[24] Teevan, J. and Karger, D., Empirical Development of an Exponential Probabilistic Model 
+for Text Retrieval: Using Textual Analysis to Build a Better Model, the 26th Annual 
+ACM Conference on Research and Development in Information Retrieval, 2003. 
+[25] Cao, Yunbo, Xu, Jun , et al. Adapting ranking SVM to document retrieval. SIGIR '06: 
+Proceedings of the 29th annual international ACM SIGIR conference on Research and 
+development in information retrieval. New York, NY, USA , ACM, 2006.  
+[26] A. Shashua and A. Levin. Taxonomy of Large Margin Principle Algorithms for Ordinal 
+Regression Problems. Technical Report 2002-39, Leibniz Center for Research, School of 
+Computer Science and Eng., the Hebrew University of Jerusalem. 
+ 

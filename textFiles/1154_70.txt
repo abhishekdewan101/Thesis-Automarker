@@ -1,0 +1,2217 @@
+Executive Summary
+1. Produce energy fields via morphological operators.
+2. Adapted and developed eye localisation from Choi et al. (2009) seen
+in section 3.2.
+3. Implemented and developed deformable template based on work of Xie
+et al. (1994) for eye detection, see section 3.3.
+4. Developed reflex localisation.
+5. Developed deviation calculation.
+6. Visually assessed all the images for result analysis.
+Contents
+1 Introduction 1
+2 Background and Context 3
+2.1 Strabismus and Its Diagnosis . . . . . . . . . . . . . . . . . . 3
+2.1.1 Strabismus . . . . . . . . . . . . . . . . . . . . . . . . 3
+2.1.2 Hirschberg Test . . . . . . . . . . . . . . . . . . . . . . 5
+2.1.3 Quantification of Deviation . . . . . . . . . . . . . . . 8
+2.1.4 Hirschberg Ratio . . . . . . . . . . . . . . . . . . . . . 8
+2.2 Morphological Operation . . . . . . . . . . . . . . . . . . . . . 10
+2.2.1 Erosion and Dilation for Binary Images . . . . . . . . 10
+2.2.2 Top-hat and Top-bottom Transformation . . . . . . . 10
+2.2.3 Blur-minimum Operator on Greylevel Images . . . . . 12
+2.3 Eye Extraction . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+2.3.1 Coarse Position Estimation . . . . . . . . . . . . . . . 13
+2.3.2 Template Based Extraction . . . . . . . . . . . . . . . 17
+3 Work Carried Out 24
+3.1 Preprocessing . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+3.1.1 Energy Fields Generation . . . . . . . . . . . . . . . . 24
+3.1.2 Tilt Correction . . . . . . . . . . . . . . . . . . . . . . 27
+3.2 Coarse Position Estimation . . . . . . . . . . . . . . . . . . . 28
+3.2.1 Vertical Estimation . . . . . . . . . . . . . . . . . . . . 29
+3.2.2 Horizontal Estimation . . . . . . . . . . . . . . . . . . 31
+3.3 Eye Extraction . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+3.3.1 Modification of Deformable Template . . . . . . . . . 35
+3.3.2 Implementation of Template-based Extraction . . . . . 36
+3.4 Reflex Extraction . . . . . . . . . . . . . . . . . . . . . . . . . 40
+3.5 Diagnosis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42
+4 Result and Analysis 44
+5 Conclusion and Further Work 49
+5.1 Conclusion and Critical Evaluation . . . . . . . . . . . . . . . 49
+5.2 Recommendations for Further Work . . . . . . . . . . . . . . 50
+I
+A Full Experimental Data 55
+A.1 Esotropia Image Set . . . . . . . . . . . . . . . . . . . . . . . 55
+A.2 Exotropia Image Set . . . . . . . . . . . . . . . . . . . . . . . 56
+A.3 Pseudostrabismus Image Set . . . . . . . . . . . . . . . . . . . 56
+A.4 Other Image Set . . . . . . . . . . . . . . . . . . . . . . . . . 56
+II
+Chapter 1
+Introduction
+Strabismus, often called “crossed-eyes” or “wall eyes”, is a medical condi-
+tion where the eyes are not properly aligned with each other (Rutstein et al.,
+2011). Either the left or the right eye has a deviation when the eyes are fixed
+to an object straight ahead. Sometimes both eyes turn in or out. With an
+alternative name “squint”, strabismus is a common eye disease. Especially
+in both infants and the elderly, there are higher strabismic presence (Bremer
+et al., 1998; Martinez et al., 2011). Generally, this disease can be classified
+according to the direction of the iris deviation: esotropia is the condition of
+eyes turning in, while exotropia represents the eyes turning out. There are
+also hypertropia and hypotropia which correspond to the eyes abnormally
+turning up or down, however, they are less incident and are more likely to
+be complicated by a horizontal deviation.
+Figure 1.1: Strabismus: left esotropia. Source: “Accommoda-
+tive Esotropia”, http://www.strabismus.org/esotropia eye turns in.html, 12
+September 2012.
+Most strabismus can be treated by corrective glasses or surgery, in which
+the amount of correction is important to know before the treatment. There-
+fore, quantification of the deviation of strabismic eye is needed to give a
+further reference for treatment. There is a kind of professional equipment,
+called synoptophore, that can accurately measure the deviation. This exam-
+ination can only be carried out in clinics. A patient who undergoes this test
+1
+should place their head onto the machine, and fully follow the instructions
+of practitioner. This complex process makes synoptophore test unsuitable
+for diagnosis of infants and young children. They are neither not able to
+sit properly in front of the machine, nor likely to calm down and follow the
+complex instructions. Therefore, visual assessments are frequently taken.
+Ophthalmologists often carry out a simple Hirschberg test to subjectively
+estimate the iris deviation. To hold a light in front of the patient can make
+a reflex on each eye, and the aim of this test is to estimate the iris devi-
+ation from where the reflex locates on the cornea. The result of this test
+can be referred to in further tests, such as ocular motility test, which assess
+how well the extraocular muscles can drive the eye fixating moving objects.
+In general, Hirschberg test produce rather qualitative than quantitative re-
+sults. Depending on the cooperation of the patient and the experience of
+the practitioner, the results will necessarily vary between practitioners.
+Ophthalmologists have the needed resources to quickly assess eye de-
+viation accurately. The aim of this project is to develop a system that
+automatically accesses the condition of strabismus through the images of
+strabismic patient. Specifically, the system should be able to calculate the
+amount of iris deviation in a given image. Since Hirschberg test is the most
+common strabismus test in clinics, Hirschberg image (the facial image cap-
+tured in the Hirschberg test) is relatively easy to get. In these images, blur
+rarely occurs because the light can always keep the shutter fast. It makes
+Hirschberg image ideal for the resource for strabismus analysis. The system
+should automatically detect the eyes in the Hirschberg image and discover
+the problem within the region of eyes.
+In the field of computer vision, to accurately detect eyes in facial im-
+age has been developed for more than 20 years, and currently there are
+two approaches: feature-based and template-based. A disadvantage of the
+feature-based extraction is that information within the feature cannot be
+resolved. This makes it unsuitable for this project. However, template-
+based approach can do this job. Deformable eye template, a representative
+of template-based approach, was first proposed by Yuille et al. (1992). It
+can accurately locate the iris within the eye. It is not difficult to implement
+on Hirschberg image by calculating the deviation through the comparison
+of the iris and the reflex location. However, the challenge of this approach
+is to extract the eye with different head poses, and moreover, this system
+also has to be robust to low image resolution and different skin colours.
+2
+Chapter 2
+Background and Context
+2.1 Strabismus and Its Diagnosis
+2.1.1 Strabismus
+Strabismus is a common eye disease. According to Mirzaie (2009), among
+Caucasians the incidence of strabismus is 3-4%, while its incidence among
+blacks is much lower, but it is still as much as 0.6%. Strabismus is more
+prevalent among infants; its incidence rises with the growth of age. A re-
+search on first year infants showed the presence of strabismus is 6.6% at 3
+months, and 11.8% at 12 months (Bremer et al., 1998), and the presence of
+strabismus at a younger age was found to be a highly significant predictor of
+the presence at later age. Some incidence of strabismus are found among the
+aged and according to Martinez et al. (2011), there is an annual incidence of
+0.05% of the residents in Olmsted County, Minnesota, U.S., and the median
+age at diagnosis was 65.2 years.
+Extraocular Muscles
+Each eyeball is directly controlled by 6 extraocular muscles (EOM). Each
+extraocular muscle mainly takes charge of movement in one particular direc-
+tion. As shown in table 2.1, EOMs are controlled respectively by 3 nerves.
+Among them, 4 muscles are controlled by the oculomotor nerve. This proves
+that a nerve may control eye orientation in multiple axes, and the instruc-
+tion to the muscles is cooperated by brain and the nerves. Strabismus may
+be caused by disability of either the nerve or the muscle. For this reason, it
+is hard to judge where the problem is by simply visual test. It is important
+to carry out multiple examinations, i.e. ocular motility test, to exclude the
+effect of well-working parts.
+3
+Extraocular muscle Primary Action Nerve
+Lateral rectus (LR) Abduction Abducens nerve
+Medial rectus (MR) Adduction
+Oculomotor nerve
+Inferior rectus (IR) Elevation
+Superior rectus (SR) Depression
+Inferior oblique (IO) Extorsion
+Superior oblique (SO) Intorsion Trochlear nerve
+Table 2.1: Extraocular muscles function and the nerves controlling them:
+Abduction - movement towards center; adduction - movement away from
+center; elevation - movement in a superior direction; depression - movement
+in a inferior direction; extorsion - rotation away from center; intorsion -
+rotation towards center.
+Classification by Direction
+By the direction of deviation, strabismus can be categorised into esotropia
+(eye horizontally turns towards the centre of head), exotropia (horizontally
+away from the centre), hypertropia (vertically up), and hypotropia (verti-
+cally down). They are usually described with the left or right eye specified,
+e.g. left esotropia, or right exotropia. Generally, instances of esotropia are
+recorded to be more than that of exotropia. According to Mirzaie (2009),
+the presence of esotropia and exotropia in Europe is about 5:1, however, in
+Japan exotropia is more prevalent.
+Concomitant Strabismus
+By the property of deviation, strabismus can be classified as concomitant
+or incomitant. Concomitant strabismus is to specify the eye, which always
+has the same deviation angle whatever or wherever it looks. For incomitant
+strabismus, the deviation angle varies in different orientations. Incomitant
+strabismus is also called paralytic strabismus, for the reason that it is more
+likely to be caused by nerve palsy, or sometimes extraocular muscle prob-
+lems. In terms of concomitant strabismus, the cause of the disease is more of
+vision functions than extraocular muscle or nerve problems. Children with
+concomitant strabismus are always accompanied with problematic eyesight
+and poor binocular vision.
+Accommodation
+Compared to other strabismus, concomitant esotropia has a higher incidence
+in infants and young children. Particularly, if esotropia onset between birth
+4
+and six month of age, and the misalignment of eye is stable and large, it
+is called congenital esotropia, or infantile esotropia. Moreover, by its rel-
+evance to accommodation problems, other concomitant esotropia can be
+classified into accommodative esotropia, partially accommodative esotropia,
+or non-accommodative esotropia. Accommodation is the ability to focus
+the eyes. Hyperopia (farsightedness), which is a defect of this ability, is a
+common cause of accommodative esotropia. According to Crick and Khaw
+(2003), if a concomitant esotropia can be fully corrected with spectacles,
+it is accommodative esotropia. Non-accommodative esotropia will get no
+improvements with spectacles attached, while partially accommodative es-
+otropia is a mixed condition.
+Cover Test
+In clinics, the initial deviation of the eye is measured in the first eye position
+(looking straight forward). If the displacement of eye is large enough, it is
+can be easily discovered by the practitioner. However, phoria, a recessive
+strabismus, is the condition where the eyes of the patients usually have no
+symptom of misalignment, if they are looking at an object with both eyes
+open. The ability of stereovision helps to automatically correct the eye di-
+rection. To diagnose phoria, cover-uncover test is carried out to disrupt the
+ability of stereo fusion. It is also carried out in diagnosis of dominant stra-
+bismus. In both the action of covering and uncovering an eye, to observe
+whether the other eye moves can help to discover the problem. There is also
+another cover test, called alternate cover test, to detect heterophoria.
+Moreover, in clinical practice, very young children may not respond or
+not able to follow the instructions of the practitioner. This has made oph-
+thalmologists to invent alternative options to assess first position deviation.
+According to Rutstein et al. (2011), optometrist can estimate the degree
+of strabismus by the corneal reflex test, when very young children cannot
+fixate on a target long enough for valid cover testing.
+2.1.2 Hirschberg Test
+The complete name of this test is Hirschberg corneal reflex test. German
+ophthalmologist Julius Hirschberg proposed it in 1886. It estimates the de-
+gree of strabismus by the observing the displacement of the central point of
+gaze from the iris centre. As show in figure 2.1, the patient in this test is
+asked to keep looking straight forward. At the same time, the practitioner
+holds a point light in front of the patient. According to Parks et al. (2006),
+the light source described by Hirschberg was a candle flame, and currently a
+bright fixation light is used in clinics. The light will produce a glossy reflex
+5
+on the corneal. The reflex is marked as the central point of gaze. A correct
+eye should have the reflex located in the centre of the iris (but not perfect
+centre because of angle kappa, which will be explained later). Usually, this
+test is to produce qualitative results, which is by observing how far the reflex
+is from the edge of the eye. The closer they are, the larger deviation that
+exists.
+Figure 2.1: Hirschberg test. Source: “Figure 3: Pam Mc-
+Cart (right) performs the Hirschberg or corneal light reflex test
+for ocular alignment on fellow student Martha Parker (left).”,
+http://nas.sagepub.com/content/24/6/254.full, 13 September 2012
+Excluding accommodative strabismus (this can be diagnosed by means
+of seculars), the patient normally has a squint eye, and another one is fit.
+Even if the light source is not at the front centre of the child, the reflex of
+the other eye can still be a reference of a healthy condition. However, a
+well-working eye is not actually having the centre of gaze located right on
+the centre of the iris. The actual human eye has an angle between the line
+of sight and the pupillary axis, which is defined as angle Kappa (LeGrand
+and ElHage, 1980). It is also called angle Lambda in some literature. Ac-
+cording to Parks et al. (2006), a nasal (direction towards nose) angle kappa
+is designated as positive, while a temporal (direction towards temple) angle
+as negative. It is illustrated in figure 2.2. Eyes of humans have this angle,
+although most of them are quite small, which is as a result of the fusion
+of stereovision. This is not a sign of strabismus. Since Hirschberg test es-
+timates the angle between visual axis and the line of the point light, what
+it measures is just angle kappa for a healthy person. Angle Kappa always
+cannot be eliminated during the test. The acceptable deviation should not
+exceed 11PD (5mm) in nasal direction, when the angle Kappa is taken into
+account. Then this explains why most people do not have the Hirschberg
+reflex on the perfect centre of both eyes.
+6
+Figure 2.2: Angle Kappa and the designation of its value. (Parks et al.,
+2006).
+Although it is a simple test, Hirschberg has a valuable advantage: the
+ability to exclude pseudostrabismus. Infants have a high incidence of stra-
+bismus in their first year, but some infants have both correct eyes although
+they look strabismic (figure 2.3). This condition is called pseudostrabismus.
+Due to their facial features, especially the bridge of nose, are not fully de-
+veloped, one of the eye may look deviated. Simply observing the relative
+position of eyes in the eyelid will lead to a false judgment. Under Hirschberg
+test, pseudostrabismus can be easily distinguished from strabismus - both
+of the reflexes on the eyes have no obvious displacement away from the pupil.
+Figure 2.3: Pseudostrabismus: although the right eye looks esotropia,
+the reflex of both eyes are on the centre. Source: “Fig. 2 Pseudostra-
+bismus is the appearance of but not truly misaligned eyes.”, Esotropia,
+http://www.aapos.org/terms/conditions/48, 2010).
+7
+Figure 2.4: Krimsky test. Source: “Krimsky prism test”,
+http://www.umsl.edu/ garziar/krimsky.htm, 15 September 2012.
+2.1.3 Quantification of Deviation
+To quantify the iris deviation, Krimsky test is invented as an improvement
+of Hirschberg test. It adds a prism before an eye (currently often the fixating
+eye) for turning the sight to a particular degree, which is shown in figure
+2.4. Since the visual axis of the eye has been amended, the eye will turn,
+and the reflex on the iris will also move. This change is shown in figure 2.4.
+The angle the eye turns is proportional to the diopter of the prism. (Prism
+diopter was defined as being the deflection of one centimetre at a distance
+of one metre.) By trying different diopters, the best is one which makes the
+light to reflex symmetrical between two eyes. The diopter of prism (PD) is
+often used to describe the deviation of strabismus.
+PD is widely used in all strabismus diagnosis, even when there is no
+prism in Hirschberg test. It is possible to roughly estimate the deviation by
+simple visual assessment. Schwartz (2006) summarised a way to estimate
+the prism diopter corresponding to a strabismic eye. (See figure 2.5.)
+2.1.4 Hirschberg Ratio
+The estimation by visual assessment is not accurate enough for further
+assessment. Fortunately, more detailed data can be extracted from the
+Hirschberg reflex. In order to make an accurate transformation from re-
+flected location to prism diopter, Hirschberg ratio is defined as the corre-
+8
+Figure 2.5: Estimating the deviation by the Hirschberg test (Schwartz,
+2006): a, no deviation (ortho) because the reflex is at the centre of the
+pupil; b, a deviation of 30 PD, when the reflex is at the pupillary margin;
+c, a deviation of 60 PD, when the reflex falls halfway between the pupillary
+margin and the limbus; d, a deviation of 90 PD, the reflex is on the limbus.
+sponding prism diopter added when the reflex moves by 1mm. The unit
+is PD/mm. In clinical assessment, this ratio is not very useful, because
+the practitioners rarely measure the deviation by ruler when calculating
+PD. They can use professional equipment to get far more accurate data.
+Nevertheless, Hirschberg ratio is important in research. With an accurate
+distribution of Hirschberg ratio, it is able to get PD value with wherever
+corneal reflex.
+Eskridge et al. (1988) carried out several tests on subjects of all ages to
+find a reasonable Hirschberg ratio. He marked the reflex as an initial posi-
+tion when the eye is fixating, and then performed the Hirschberg test. To
+calculate the final deviation, he used the relative distance between the devi-
+ated position and the initial position. This method successfully eliminates
+the disturbance of angle Kappa, and gives a good result. The Hirschberg
+ratio he got is 22 PD/mm for all ages.
+Riddell et al. (1994) proved a proper Hirschberg ratio should be 22
+PD/mm for both adults and infants. But he discovered the angle Kappa
+(called angle lambda in his article) decreases from 8.4 at birth to 5 at 5
+months, due to reflect axis growth of the eye.
+However, the surface of the cornea is actually not a spherical surface.
+Brodie (1992) pointed out that if the Hirschberg ratio is constant, it will
+produce an obvious error when the angle is larger than 50 PD. He pro-
+posed an integral equation, as well as a differential approach to represent
+the surface of the cornea.Regarding the accuracy of this proposed system,
+the integral equation is not needed. When the eye is in a extreme position,
+the eye extraction result would also be unreliable. It is sure that when as-
+sessing the deviation, to use a constant Hirschberg ratio of 22 PD/mm is
+reasonable where the deviating angle is not large.
+9
+2.2 Morphological Operation
+In the proposed method, the morphological operator will help to generate
+pre-processed image and a part of deformable template. All the needed
+morphological operations will be introduced in this section.
+2.2.1 Erosion and Dilation for Binary Images
+According to Maragos (2004), given a binary image, let the foreground(pixels
+with value 1) be represented by the set X and the background by the set
+compliment Xc. Dilation of X by a (window) set B is equivalent to the
+Minkowski set addition ?:
+X ?B , {z : (BS)+z ?X 6= ?} (2.1)
+where(BS) , {x : ?x ? B} is the symmetric of B with respect to the origin.
+Likewise, erosion of X by B is equivalent to the Minkowski set subtraction
+	:
+X 	B , {z : B+z ? X} (2.2)
+There is a duality between dilation and erosion since X ?B = (Xc 	Bs).
+In applications, B is usually called a structuring element. It normally has
+a simple geographical shape and a size smaller than image X. Dilation will
+shrink the input image foreground, and erosion will expand the input image
+foreground. For instance, if B is a flat disk with a radius of 2 pixels, dilation
+will add a boarder of 1-pixel width, and erosion will remove the boarder of
+that width.
+2.2.2 Top-hat and Top-bottom Transformation
+The peak and valley energy fields for deformable template is generated by
+top-hat and top bottom transformation. They are morphological operators
+who work on graylevel images. At first, some basic operations are intro-
+duced. Denote a grayscale image as f(x). The dilation and erosion of image
+signal f(x) by a set B (Maragos, 2004):
+(f ?B)(x) ,
+?
+y?B
+f(x? y) (2.3)
+(f 	B)(x) ,
+?
+y?B
+f(x+ y) (2.4)
+where
+?
+denotes maximum for finite B and
+?
+denotes minimum for finite B.
+Flat erosion of a function f by a small convex set B reduces the peaks and
+enlarge the maxima of the function. In contrast, flat dilation increases the
+valley and enlarges the minima. The actual effect of both these operations
+10
+is shown in figure 2.6.
+(a) Original image. (b) Dilation (c) Erosion
+Figure 2.6: Dilation and erosion of greyscale image by a flat disk with
+r = 3. (Original image source: “Strabismus in Adults and Children (Part 2
+- Symptoms)”, http://info.thevisiontherapycenter.com/discovering-vision-
+therapy/bid/56472/Strabismus-in-Adults-and-Children-Part-2-Symptoms,
+17 September 2012.)
+Based on erosion and delation, opening and closing operation is defined
+as:
+f ?B = (f 	B)?B (2.5)
+f •B = (f ?B)	B (2.6)
+Maragos (2004) summarised that “flat opening smooths the graph of f from
+below by cutting down its peaks, whereas the closing smooths it from above
+by filling up its valley”. The result of filtering the image of figure 2.6a is
+shown in figure 2.7.
+(a) Opening (b) Closing
+Figure 2.7: Opening and closing of greyscale image. We can see that in
+opening, sharp peaks have all been removed, while in closing, dark shadows
+have been levelled up.
+Then top-hat transformation is given by:
+peak(f) , f ? (f ?B) (2.7)
+11
+It is also called peak operator. Obviously the set B is a very important
+parameter of peak operator, because it controls the shape and size of the
+leks’ s support. The transformation of top-hat as completed is illustrated in
+figure 2.8.
+Figure 2.8: Tophat transformation through greylevel opening: (a) original
+function, (b) function opened with circular disk, (c) superposition of the
+previous two and (d) features after tophat transform (Mukhopadhyay and
+Chanda, 2000).
+Simlarly, here is the top-bottom transformation:
+valley(f) , (f •B)? f (2.8)
+These operators are very useful for detecting a region with significantly
+brighter (or darker) intensities relative to the surroundings (Maragos, 2004).
+Therefore, they are just right for highlighting local peaks and shadows. The
+result is shown in figure 2.9.
+2.2.3 Blur-minimum Operator on Greylevel Images
+Lee et al. (1987) proposed this edge detector, which is defined by
+Iedge-sthength = min{I1 ? erosion(I1), dilation(I1)? I1} (2.9)
+whereI1 = blur{Iinput} and blur{Iinput} is the input image with a blurring
+operation. The same size of kernels are used for the blur and the struc-
+turing element of the dilation and erosion. According to Lee et al. (1987),
+the advantage of this operator is that it will not detect a single noise point.
+Moreover, it can detect ideal step edges. Therefore in facial feature ex-
+traction, it can have a good response to the edge between the iris and the
+12
+(a) Top-hat (b) Top-bottom
+Figure 2.9: Peak and valley extraction of greyscale image. We can see that
+only the local peaks and valleys are extracted in detail.
+eye whites, as well as robusting to spots on the face to some extent. Its
+performance is shown in figure2.10.
+(a) min{Ge, Gd}. (b) max{Ge, Gd} (c) Blur-minimum.
+Figure 2.10: Comparison of morphological edge detectors. The original im-
+age f is same as figure 2.6a. Gd is the dilation residue operator defined by
+dilation(f)?f , and erosion residue operator Ge is defined by f?erosion(f).
+All the structure element B used here is a 3x3 flat disk. We can see the
+former ones are sensitive to noise and the edge extracted are highly deter-
+mined by size of B. Only Blur-minimum operator have a better response to
+step edges in eyes and can result in continuous fine edges.
+2.3 Eye Extraction
+2.3.1 Coarse Position Estimation
+The deformable template should be initialised within an estimated eye re-
+gion (eye window). Therefore to find where the eyes are in the image as
+accurate as possible all the work should be done before fine extraction of
+the iris.
+13
+Early Work
+Kanade (1977) did a pioneering work on facial feature detection. He filtered
+facial image with a 9-by-9 Laplacian operator, and got a binary edge image.
+Then there are 7 steps for extracting the following features in order: head
+top; face sides; nose, mouth and chin; chin contour; cheer areas; eye. Since
+the analysis of each step is based on results of previous steps, if in any step
+a salient feature is not found, the whole program will stop and discard the
+current image.
+Figure 2.11: Cheek areas and rectangles which contain the eye (Kanade,
+1977)
+Bounding eyes with rectangles is the final step in this algorithm. Par-
+ticularly, it works upon the estimated area of cheek, which is the result of
+the former steps. In this step, the projection of the edge binary image will
+be done both horizontally and vertically. After fusion (dilation) and shrink
+(erosion), the largest connected area in the estimated region can then be
+picked out. The bounding rectangle of the two selected areas are the result
+of eye detection. However, the drawback is that any error of the previous
+steps can result in the failure of the eye extraction.
+A Fast Method
+Choi et al. (2009) proposed a set of method for fast coarse estimation of the
+eye location. Their publication illustrates the entire process for extracting
+eyes, but only the former steps are explained here. The fine eye extrac-
+tion of them is rough and will not be used in this project. The estimating
+method is quite similar to the work done by Kanade (1977), but in a more
+straightforward way. It consists of 3 main epochs.
+14
+Estimation of Face Tile Angle In a ficial image, the eyes, the eyebrows,
+and the mouth regions are darker than their neighbourhood and these shapes
+are often horizontally wide and vertically short. They can be easily extracted
+on the valley image (fugure 2.12 (a)) produced by top-bottom transforma-
+tion(see subsection 2.2.2). Once the valley region is extracted, a function
+V (y) can be defined:
+V (y) = the number of pixels(x, y) ? valley, for all x. (2.10)
+The function V (y) is shown in figure 2.12 (c), in which the vertical y-axis
+represents the vertical image line and the horizontal x-axis represents the
+number of pixels belonging to the valley regions in each line. According to
+Choi et al. (2009), this function has the maximum variance when the face
+is kept upright, regardless of illumination change (shown in 2.13). The face
+tilt-angle can be reliably estimated by rotating the face image to the pose
+when V (y) has the maximum variance. The result is shown in figure 2.12
+(c) and (d).
+Figure 2.12: The estimation of face tilt angle: (a) The original image, (b)
+The valley detected using a morphological grey black top-head, (c) The
+function V (y) when the face tilted to the right, (d) The function V (y) when
+the face de- rotated to upright. (e) Three lines show the estimated tilt angle,
+(f) the normalised face image rotated to upright. (Choi et al., 2009)
+Coarse Estimation of Vertical Eye Location According to Choi et al.
+(2009), the function V (y) in the equation has local maximum values at the
+vertical locations of the eyes, eyebrows, nose, or mouth. This is shown
+in figure 2.13. In general, the function V (y) has the maximum value at
+15
+Figure 2.13: Variation of the function V (y) due to the illumination and pose
+changes (Choi et al., 2009)
+the vertical eye location or at the vertical eyebrow location. Since there is
+a property that eyes are closer to eyebrow than to the nose, the vertical
+location of eyes can be estimated. When detecting the local maximum
+location, they use a lowpass filter to smooth function V (y) for removing
+spurious local maximum. Then two local maximum located at the eye and
+the eyebrow can be merged, especially when the eyebrows are very thick
+and the eyes are very thin. Choi et al. (2009) created another function E(y)
+using horizontal edges:
+E(y) = the number of pixels(x, y) ? horizontal edges, for all x. (2.11)
+Even though this function E(y) is more sensitive to illumination change,
+according to Choi et al. (2009) the eye location can be reliably separated
+from the eyebrow location.
+Coarse Estimation of Horizontal Eye Location Once the vertical
+location of the eyes is obtained, they cut off a region which includes two
+eyes and two eyebrows tightly. Based on the valley image in this region
+(shown in figure 2.14 (b)), Choi et al. (2009) create a function F (x):
+F (x) = the number of pixels(x, y) ? valley, for all y. (2.12)
+According to Choi et al. (2009), the function F (x) is large in the eye region
+and small in the other region. Using this property, the horizontal zones of
+the eye can be located.
+For the handling this problem, we create another 
+function E(y) using horizontal edges as 
+ xallfor  edges, horizontaly)(x, pixels ofnumber   the)( ? yE  (3) 
+Even though this function E(y) is more sensitive to 
+illumination change, we can reliably separate the eye 
+location from the eyebrow location. 
+ 
+Fig. 3. Variation of the function V(y) 
+due to the illumination and pose changes 
+2.3 Coarse Estimation of Horizontal Eye 
+Location 
+Once we estimate the vertical location of eyes, we cut 
+off a region which includes two eyes and two eyebrows 
+tightly. In this region, we detect valley region including 
+two eyes and eyebrows using a morphology filter again. 
+This is shown in Fig. 4. Once we detect the valley, we 
+cre te a function F(x) as 
+y allfor    valley,y)(x, pixels ofnumber   the)( ? xF   (4) 
+The function F(x) is large in the eye region and small 
+in the other region. Using this property, we can estimate 
+the horizontal zone in which two eyes can be located. 
+ 
+(a)            (b)             (c) 
+Fig. 4. (a) The cut-off image including eyes and eyebrows,  
+(b) The detected valley region, (c) The Function E(x) 
+ 
+2.4 Candidate region for Iris location 
+Once we have estimated the vertical and horizontal 
+regions where two eyes can be located, we will detect 
+the dark circle inside an eye in a gray image, which 
+includes both of the pupil and the iris. We call the dark 
+region “iris”. In this paper we design a simple effective 
+filter, which responds to the iris very fast. The filter 
+consists in four rectangle windows, which is shown in 
+Fig. 5. Even though the iris shape looks like an ellipse, 
+we can detect the iris by comparing the difference 
+between the sums of pixel values inside four rectangle 
+windows. The sum of pixel values inside a rectangle 
+window can be computed with a couple of add 
+operations, which is described in [9]. The filter output, 
+which is computed in pre-detected regions, is as 
+follows; 
+> @
+> @
+> @
+> @ > @ > @y)Valley(x,max
+y)Valley(x,-?
+y)Cross(x,max
+y)Cross(x,-?
+y)(x,?y)(x,?
+y)(x,?y)(x,?
+?
+y)(x,?y)(x,?max
+y)(x,?y)(x,??
+y)(x,?Avg
+y)(x,??y)ouput(x,
+y)(x,y)(x,RL
+RL
+COy)(x,
+CO
+C
+C
+
+
+
+
+ (5) 
+ 
+ 
+(a)                    (b) 
+Fig. 5. The rectangle filters used to detect the iris candidates: (a) the inner 
+and the outer rectangles, (b) The left and the right rectangles. Even though 
+the iris shape looks like a ellipse, we use a rectangle shape filter for real-time 
+implementation 
+ 
+where  is the sum of pixel values in the outer 
+rectangle,  is the sum of pixel values in the inner 
+rectangle,  is the sum of pixel values in the left 
+rectangle,  is the sum of pixel values in the right 
+rectangle.  is the mean crossing evaluation 
+described in [1].  is the number of valley pixels in 
+the inner rectangle. In the most case, the output has the 
+minimum value at the center of the iris. However, the 
+reflection of the light, which appears in the pupil of 
+each eye, increases the output value. Therefore, we 
+remove the light reflection and apply the filter to the 
+pre-selected valley region. The removing results in 
+shown in Fig. 6. For the detection of light reflection, we 
+equalize the intensity histogram of the pre-selected 
+region and use a morphological white top-head. 
+y)(x,?O
+(x,?C
+(x,? L
+(x,? R
+Cross(x,
+y)
+y)
+y)
+y)
+Valley(x,y)
+ 
+ 
+(a)                 (b)                 (c) 
+Fig. 6. (a) The cut-off image including eyes and eyebrows, (b) The right 
+Proceedings of the 9th WSEAS International Conference on SIGNAL PROCESSING, COMPUTATIONAL GEOMETRY and ARTIFICIAL VISION
+ISSN: 1790-5109 80 ISBN: 978-960-474-108-3
+Figure 2.14: (a) The cut-off image including eyes and eyebrows, (b) The
+detected valley region, (c) The Function F (x) (Choi et al., 2009)
+16
+2.3.2 Template Based Extraction
+Within the estimated eye region, the next process is to extract the iris. Yuille
+et al. (1992) proposed the deformable eye template, which can be attached
+to the shape of eye and accurately gets the iris location.
+The Deformable Template
+Yuille et al. (1992) first proposed a set of deformable templates for facial
+features in 1988, and then revised their publication in 1992. The later one is
+illustrated here. This method has been the classical way of doing facial fea-
+ture extraction and recognition. Currently, many researches are still taking
+his template, or the variation of it as a fundamental, although this algorithm
+was proposed over 20 years ago.
+Before extraction, it is essential to generate three potential fields from
+the facial image. The edge image?e(x, y), valley image ?v(x, y), and peak
+image ?p(x, y) can be produced by morphological operators (see section
+2.2). But the edge field, for example, will be the largest near edges in the
+image. Therefore they smooth these three images by convolving them with
+an exponential function e?p
+√
+x2+y2 respectively. This operation results in
+energy fields ?e(x, y), ?v(x, y), and ?p(x, y), which enable interactions to
+be effective over longer distances. The three potential fields, together with
+the image intensity ?i(x, y), are shown in figure 2.15. The potential fields
+(representations of image) are more effective for tracking objects than the
+image itself. According to Yuille et al. (1992), introducing potential fields
+will enable strong edges, valleys, or peaks to attract objects a large distance
+away.
+! 16!
+!
+a! ! ! ! ! ! ! ! ! ! ! ! ! ! ! b! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! c! ! ! ! ! ! ! ! ! ! ! ! ! ! d!
+Figure!3.3!The!potential!fields!for!an!"archetypal"!eye!(from!Yuille!et.!al.,!1992).!The!eye!(a),!has!edge,!valley,!and!peak!fields!shown!in!order!(b,!c,!d).! !The!strengths!of!the!fields!are!shown!in!greytone,!white!is!strong!and!black!is!weak.!
+Yuille!et.!al.!(1992)!proposed!two!templates,!one!is!for!eyes,!and!the!other!is!for!mouth.!Each! of! them! is! individual,! therefore! only! the! template! of! eyes! is! covered! in! the!following!paragraphs.!The!eye!template!is!illustrated!in!figure!3.4.!
+!
+Figure!3.4!The!deformable!eye!template!(from!Yuille!et.!al.,!1992).!
+According!to!Yuille!et.!al.!(1992),!the!eye!template!consists!following!features:!1,!A!circle!of!radius!r3and!center3Xc(xc3,3yc),!representing!the!border!of!iris.!Its!interior!is!attracted!to!valleys!in!the!image!intensity.!2,! A! bounding! contour! of! the! eye,! modeled! by! two! parabolic! sections.! Both! of! the!sections!have!center!Xe(xt3,3yt),!and!width!2b,!and!the!height!above!and!below!is!a!and!c!correspondingly.!The!bounding!contour!has!a!rotation!?.!It!is!attached!to!edges.! !3,!Two!points!Xe! +!p1(cos!?,! sin!?),!Xe! +!p2(cos!?,! sin!?),! located!at! the! centers!of! the!white!of!eyes.!They!are!attracted!to!peaks!in!the!image!intensity.!4,!The!regions!between!bounding!contour!and!the!circle!also!correspond!to!whites!of!the!eyes.!They!are!attracted!to!large!values!in!the!image!intensity.!
+An!energy!function!was!also!defined:!
+Ec=!Ev!+!Ee!+!Ei!+!Ep!+!Eprior3.!Where:!
+Ev3is!the!valley!potentials,!given!by!opposite!value!of!average!valley!intensity!inside!the!circle,!
+(a) (b) (c) (d)
+Figure 2.15: The potential fields for an “archetypal” eye. The eye (a), has
+edge, valley, and peak fields shown in order (b), (c), (d). The strengths of
+the fields are shown in greytone, white is strong and black is weak. (Yuille
+et al., 1992)
+Then the original eye templates is illustrated in figure 2.16. According
+to Yuille et al. (1992), it consists of the following features:
+17
+Figure 2.16: The deformable eye template (Yuille et al., 1992)
+1. A circle of radius r and centre ~Xc, representing the border of iris. Its
+interior is attracted to valleys in the image intensity.
+2. A bounding contour of the eye, modelled by two parabolic sections.
+Both of the sections have centre ~Xe, and width 2b, and the height
+above and below is a and c correspondingly. The bounding contour
+has a rotation ?. It is attracted to edges.
+3. Two points ~Xe + p1(cos?, sin?) and ~Xe + p2(cos?, sin?) (p1 ≥ 0, p2 ≤
+0), located at the centres of the white of eyes. They are attracted to
+peaks in the image intensity.
+4. The regions between bounding contour and the circle also correspond
+to whites of the eyes. They are attracted to large values in the image
+intensity.
+The template has eleven parameters represented by ~g = (~(Xc),~(Xe), p1, p2,
+r, a, b, c, ?). Then the complete energy function Ec(~g) is defined as
+Ec = Ev + Ee + Ei + Ep + Eprior
+where
+(i) Ev is the valley potentials, given by opposite value of average valley
+intensity inside the circle,
+Ev = ? c1|Rc|
+∫
+Rc
+?v(X) dA;
+18
+(ii) Ee is the edge potentials, given by the opposite sum of average edge
+intensity on circle and bounding contour,
+Ee = ? c2
+∂|Rc|
+∫
+∂Rc
+?e(X) ds? c3
+∂|Rw|
+∫
+∂Rw
+?e(X) ds;
+(iii) Ei is the image potentials, given by the average peak intensity inside
+the circle, minus the average valley intensity in the whites,
+Ei =
+c4
+|Rc|
+∫
+Rc
+?i(X) dA? c5|Rw|
+∫
+Rw
+?i(X) dA;
+(iv) Ep is the peak potentials, given by the sum of peak intensity on p1
+and p2,
+Ep = c6{?( ~Xe + p1(cos?, sin?)) + ?( ~Xe + p2(cos?, sin?))};
+(v) Eprior is the prior potentials, given by
+Eprior =
+k1
+2
+||~(Xe)?~(Xc)||2 + k2
+2
+(p1 ? p2 ? {r + b})2
++
+k3
+2
+(b? 2r)2 + k4
+2
+((b? 2a)2 + (a? 2c)2).
+Here Rc and Rw correspond to the iris and the eye, while ∂Rc, ∂Rw repre-
+sents their boundaries (see figure 3.4). Their areas or lengths are given by
+|Rc|, |Rw|, |∂Rc|, |∂Rw|.
+The search is divided into a number of epochs with different values of
+the parameters {ci} and {ki}. According to another publication of Yuille
+(1991), “changing the values of these coefficients enables us to use a match-
+ing strategy in which different parts of the template guide the matching
+at different stages”. To minimise Ec, the parameter values are updated by
+steepest descent.
+In the simulation by Yuille et al. (1992), the process is divided into 8
+carefully designed epochs:
+1. The valley field helps the iris to drag the template toward the eye.
+2 - 3. The iris finds its size and position.
+4. The Peak field helps in finding parabolic locations.
+5. Fine tune white boundaries.
+19
+6 - 8. Fine tune position.
+This process is shown in figure 2.17. In each epoch, only some potentials
+are allowed to change. An epoch will terminate when the updated parame-
+ters converge, which is defined by another table of parameter tolerances in
+each epoch.
+The simulation presents a good result. The image they test on is a sim-
+ple eye photo with good lighting. The initial template will be placed in the
+centre of the image. As a first work of the deformable template based ex-
+traction, their result is acceptable on most test images. However, the epochs
+of this algorithm are pre-defined, which may be unsuitable for other images.
+The author also points out that this algorithm gives error during a test,
+when there is a strong intensity peak on the eyelid and shadow in the eye.
+! 18!
+images.! It! is! neither! flexible! nor! robust.! The! author! also! point! out! that! this! algorithm!makes! error! during! a! test,! hen! there! is! a! strong! intensity! peak! on! the! eyelid! and!shadow! in! the! eye.!Whatever,! for! the! r ason! that! the! deformable! template!method! is!proposed!in!this!publica i n,!this!i !the!fundamental!of!all!late !researches.!
+!Fig!3.!5!Eye!template!at!different!times!during!the!minimization!(from!Yuille!et.!al.,!1992).!
+Improved!deformable!template!by!Xie!et.!al.!Xie! et.! al.! (1993)! proposed! an! improved! template! based! on! the!work! by! Yuille! et.! al..!They!removed!the!two!points! in!whites!(represented!by!p1,!p2)! from!the!template,!and!use! corners! to! introduce! the! image!peak! information.!This! is! shown! in! figure!3.5.!The!reason! for! this! is! to! accommodate! the! template! when! the! eye! moves! to! extreme!positions.! In! some!cases!whites!on!one!side!will!disappear,! then! the!peak!point! in! the!original!template!cannot!locate.!This!modification!is!very!useful!for!this!project.!It!helps!to!take!consideration!of!second!and!tertiary!positions.!
+!Figure!3.5!The!modified!eye!template!(from!Xie!et.!al.,!1993).!
+In!this!template,!the!modified!energy!function!is!given!by!
+! = !!!!!!"!!!" !
+Where!Ei! is!normalized!between!0!and!1,!and!called!energy!terms!in!the!new!function.!{Ci}! in! the! original! template! are! replaced! by! weights! Wi,! which! is! outside! each!component!Ei.!The!new3Ep,!as!well!as!a!new!measurement!for!orientation,!is!defined!as!
+Figure 2.17: Eye template at different times during the minimisation. (Yuille
+et a ., 1992)
+Improved Deformable Template by Xie et al. (1994)
+Xie et al. (1994) point out some problem of the template by Yuille et al.
+(1992):
+1. Long processing time.
+2. Sequentially weights changing may result in trapping in local minima.
+3. Hard to generalise - weights are determined by exper ment.
+Then they proposed an improved template. They removed the two points
+in whites (represented by p1, p2) from the template, and used the middle
+20
+point between the centre and corner as the peak of whites. This is shown
+in figure 2.19.
+Figure 2.18: The modified eye template. (Xie et al., 1994)
+In this template, the modified total energy is denoted as
+E =
+10∑
+i=1
+WiE
+2
+i
+Where Ei, called energy terms, are normalised between 0 and 1. {Ci}
+in the original template are replaced by weights {Wi}, and they are placed
+outside each term Ei. The definition of each energy terms is given as follows:
+1. The valley potential here became a valley energy term.
+E1 = Ev = 1? 1
+Areacircle
+∑
+i?circle
+b
+(V )
+i
+where b
+(V )
+i is the value of the point from valley field.
+2. Similarly, the edge potential became edge energy term.
+E2 = Ee = 1? ( 1
+Lengthcircle
+∑
+i
+b
+(E)
+i
++
+1
+Lengthparabolas
+∑
+i
+b
+(E)
+i )
+where b
+(E)
+i is the value of the point from edge field.
+3. With the parameters p1, p2 removed, a new term is created to replace
+the peak potential. It sums the peak field over two small windows
+located at the middle points of the centre and parabola intersections.
+E3 = Ep =
+2∑
+i=1
+1
+Areawindowi
+∑
+j?windowi
+b
+(P )
+j
+21
+where b
+(P )
+i is the value of the point from peak field, which is applied
+to the next term as well.
+4. Another new term is calculated in small windows at parabola inter-
+sections, to give the template a right orientation.
+E4 = Ec = 1?
+2∑
+i=1
+1
+Areawindowi
+∑
+j?windowi
+b
+(V )
+j
+The image potential had been spilt into three terms. They are the terms for
+image intensity inside the circle, over the whites, and on the edges:
+5. E5 = Eic = 1? k5Areacircle
+∑
+i?circle gi
+6. E6 = Eiw = 1? k6Areawhites
+∑
+i?whites gi
+7. E7 = Eie = 1? k7Lengthparabolas
+∑
+i?parabolas gi
+where gi is the greylevel value of point in the image.
+The prior potential had been simplified and spilt into two internal energy
+terms E8 and E9. Another one E10 is newly added to constraint of the shape
+of lower eyelid.
+8. E8 = Eint 1 = k8| ~Xe ? ~Xc|
+9. E9 = Eint 2 = k9|b? 2r|
+10. E10 = Eint 3 = k10|b? 4c|
+In the above definition, {ki} are normalisation constants. According
+to Xie et al. (1994), k5, k6, k7 are obtained from the grey level mean and
+standard deviation of the area under side ration and k8, k9, k10 are related
+to b.
+Compared to Yuille et al.’s work, the greatest change of this method is on
+the way of processing. Firstly, in the part of preprocessing, Xie et al. (1994)
+used the binary image of potential fields. A bounding box is created for the
+deep valley of the image, and the template will be initialised within the box.
+They worked on the whole facial image and the eye window is obtained by
+searching both vertically and horizontally on the face. The algorithm was
+based on the prior knowledge of human faces, but was not explained in detail.
+Then, most importantly, they remove the epochs of minimisation, but
+optimised all the parameters X = { ~Xc, ~Xe, a, b, c, r, ?} simultaneously. Ac-
+cording to Xie et al. (1994), this “prevents some parameters of the eye
+template from being overly changed, helps the algorithm to converge to
+22
+On improving eye feature extraction using deformable templates 795 
+4. EXPERIMENTAL STUDIES 
+The experimental schemes were performed on real 
+images using a 33 M H z  486 PC compatible computer.  
+The valley, peak and edge fields were extracted in the 
+preprocessing stage using the blur and minimum 
+morphologic  operator  t~2'14~ and are shown in Fig. 3. 
+The preprocessing for obtaining the eye window takes 
+about  3-4  s on the PC. Based on this eye window, the 
+initial parameters for the eye template are selected. 
+Figure 4 presents the experimental results with a 
+facial image. The initial parameters are selected from 
+the eye window such that the center of the circle and 
+parabolas, . ~  and . ~ ,  are located at the center of the 
+window, and a, b, c and r are proport ional  to the width 
+and height of the window. Initially the orientation 0 is 
+Fig. 3. The valley, peak and edge fields of an eye image (from left to right). 
+Fig. 4. A sequence of eye templates with the initial parameters of the template based on an eye window. 
+The first frame shows this eye window obtained in the preprocessing. 
+,: ' !, ii~ - , / ~' " liiL 
+Fig. 5. A dynamic sequence of eye templates with the initial parameters of the template disturbed. 
+Fig. 6. A dynamic sequence of eye templates using another eye image. 
+Figure 2.19: The valet, peak and edge fields of an eye image (from left to
+right). (Xie et al., 1994)
+the global minimum, and reduces processing time”. The normalised energy
+function is written as a sum of weighted nonlinear functions
+F (X) =
+10∑
+i=1
+WiE
+2
+i (X). (2.13)
+They used the L venberg-Marquardt algori hm rathe than steepest descent
+method for energy minimisation. The iteration is given by
+Xk+1 = Xk + dk (2.14)
+(JTk WJk + ?I)dk = ?JTk WFk (2.15)
+where Jk is a Jacobian matrix for the nonlinear functions Ei( ~X), and ? is
+an adjustable coefficient. (Xie et al., 1994) In their implementation, ? is
+chosen as a small value, to balance the convergence speed and the ease of
+initialised parameter selection. A process of minimisation is shown in figure
+2.20.
+On improving eye feature extraction using deformable templates 795 
+4. EXPERIMENTAL STUDIES 
+The experimental schemes were performed on real 
+images using a 33 M H z  486 PC compatible computer.  
+The valley, peak and edge fields were extracted in the 
+preprocessing stage using the blur and minimum 
+morphologic  operator  t~2'14~ and are shown in Fig. 3. 
+The preprocessing for obtaining the eye window takes 
+about  3-4  s on the PC. Based on this eye window, the 
+initial parameters for the eye template are selected. 
+Figure 4 presents the experimental results with a 
+facial image. The initial parameters are selected from 
+the eye window such that the center of the circle and 
+parabolas, . ~  and . ~ ,  are located at the center of the 
+window, and a, b, c and r are proport ional  to the width 
+and height of the window. Initially the orientation 0 is 
+Fig. 3. The valley, peak and edge fields of an eye image (from left to right). 
+Fig. 4. A sequence of eye templates with the initial parameters of the template based on an eye window. 
+The first frame shows this eye window obtained in the preprocessing. 
+,: ' !, ii~ - , / ~' " liiL 
+Fig. 5. A dynamic sequence of eye templates with the initial parameters of the template disturbed. 
+Fig. 6. A dynamic sequence of eye templates using another eye image. 
+Figure 2.20: A sequence of eye templ tes with the initi l parameters of the
+template based on the eye window. (Xie et al., 1994)
+According to Xie et al. (1994), in their experiment, it takes typically 4
+- 10 iterations for the algorithm to converge to the global minimum state.
+The best extraction comes when the weight for image energies equal 4 and
+for internal energies equal 0.5. However, they also conclude that the fitting
+of parabolas is more difficult than that of the circle, for the reason that
+shades exist around the eyelids and the area around lower eyelid has very
+low contrast.
+23
+Chapter 3
+Work Carried Out
+Based on the material illustrated above, this project will firstly use the fast
+method (Choi et al., 2009) to estimate the rough position of the eye and then
+implemented the improved deformable template (Xie et al., 1994) to locate
+the iris in Hirschberg image. Due to the special features of strabismic eyes
+and requirements of this project, both of these methods have been modified.
+3.1 Preprocessing
+Preprocessing include energy field generation and tilt correction. Tilt cor-
+rection and the deformable template optimisation will rely on the generated
+energy fields.
+3.1.1 Energy Fields Generation
+The aim of this step is to extract three representation of the strabismic
+image for later analysis. They are: valley field (highlighting the dark iris and
+eyelid), peak field(highlighting the eye whites), and edge field (highlighting
+strong step edges, especially the boundary of iris and the eyelids).
+Peak Field and Valley Field Generation
+Creation of these two fields are similar, because they both highlight partic-
+ular regions in the image. Regrading the property of the iris, the valley field
+should strengthen the shadows in the image. However, the iris is probably
+not the darkest region in the whole image (background or black hair may
+have lower greyscale value), but it should be the darkest among its neigh-
+bourhood due to the bright eye whites around it. Therefore the creation of
+valley field is actually to find local minimum in the image. Similarly, since
+the highlight on the face may be higher than the eye whites, generation of
+peak field should be extraction of local maximum. When given a test image
+as figure 3.1a, simple threshold is not capable to compete this job. It is easy
+24
+to see that in figure 3.1b, the extracted shadow area contains the unwanted
+background, while in figure 3.1c, the bright areas contain the cheek, also the
+eye whites are not fully extracted.
+(a) Greyscale image. (b) Shadow area:
+complement of threshold
+T = 0.3.
+(c) Bright area:
+threshold T = 0.7.
+Figure 3.1: Binary thresholding is not suitable for energy field gen-
+eration. Original image source: “Strabismus Picture - Strabis-
+mus is commonly caused by an eye muscle abnormality”, Strabismus,
+http://lasereyesurgeons.net/strabismus, 22 September 2012.
+The author also tried the adaptive threshold, which can binarise an im-
+age according to local brightness. According to Fisher et al. (2003), this
+algorithm will first calculate the mean M of a N ?N square neighbourhood
+around each pixel, and then compare the value of central pixel with M ?C
+(where C is a thresholding constant). If the value is greater than M ? C,
+it will be set to foreground, otherwise, it is set to background. Compared
+to direct thresholding, the shadows and highlights found are local rather
+than global. Applied on the image of figure 3.1a, adaptive threshold can
+result in images illustrated figure 3.2. In figure 3.2a, it is obvious that more
+local shadow has been extracted and the dark background can be effectively
+removed. However, the peak image does not pick out all white areas. The
+noise on it could also mislead the deformable template during optimisation.
+Most importantly, binary image are not suitble for energy fields how-
+ever they are generated. Althrough Xie et al. (1994) used binary energy
+fields in their experiment, the author here prefers the representations cre-
+ated by Yuille et al. (1992). Energy field for template of Yuille et al. (1992)
+are grayscale images, which guarantee them to convey more information on
+each pixel than binary images. Deformable template optimisation can be
+unstable and fluctuating on binary images, since the difference of nearby
+pixels on the edge are much greater than that in grayscale images.
+To create grayscale energy field, morphological top-hat and top-bottom
+operations (see subsection 2.2.2) are chosen. It is not hard to see their
+advantage when figure 3.3 is compared with the binary images above. Effects
+of the background is reduced because both fields have relatively low value
+25
+(a) Valley image: complement of
+adaptive threshold where C = 15
+(b) Peak image: adaptive
+threshold image where C = ?10
+Figure 3.2: Adaptive threshold images of figure 3.1a.
+there. In the peak field, eye whites have highest values while in valley field
+two irises have great response. This makes the deformable template much
+more easy to be attracted.
+(a) Top-hat peak field (b) Top-bottom valley field
+Figure 3.3: Peak and valley potential fields generated with morphological
+operators.
+The size of the operator should be proportional to the size of the feature
+which is to be extracted. In this step the size of eye is not known, but all
+image resources are facial image. Assuming all image are covering the eyes
+with a little bit extra space horizontally, the author allows the kernel size to
+be proportional to width of the image. The experiments show that when the
+size is equal to the width/30, the extracted fields have the best performance.
+Edge Field
+The edge field is also extracted through morphology operations. Similar to
+the method which Choi et al. use, blur-minimum operator (see subsection
+2.2.3) is implemented to extract edges. The comparison of sobel edge detec-
+tor, morphological gradient operator, and blur-minimum operator is shown
+in figure 3.4: the classical sobel edge is strong but choppy, which could mis-
+lead the eye template; the gradient edge performs much better on fine edges
+but it is sensitive to noise; only the blur-minimum edge has strong and clear
+response to step edge, and robustness to noise as well.
+26
+(a) Sobel edge detector. (b) Morphological
+gradient: min{Ge, Gd}
+(see figure 2.10a).
+(c) Blur-minimum
+detector.
+Figure 3.4: Comparision of edge detectors. The source image is the same as
+figure 3.1a. Kernel size for all of these operations are width/100.
+Similar to the peak and valley fields, the size of the blur-minimum kernel
+should also be proportional to size of the eyes. Here the author still uses the
+width of image to estimate the kernel size, but the best value is width/100,
+which resulted from the experiments.
+(a) Peak Field. (b) Valley Field. (c) Edge Field.
+Figure 3.5: Smoothed potential fields.
+According to Yuille et al. (1992), smoothing potential fields can help
+attract the template from long distance. However, if too large kernel is
+used, the smoothed image can lose the detailed information of step edges.
+Therefore, width/100 is chosen again for the size of kernel, to produce a
+smooth but informative energy field. Images in 3.5 are the energy fields
+after smoothing by mean filter.
+3.1.2 Tilt Correction
+The algorithm of tilt correction is adapted from the work of Choi et al.
+(2009). When the function V (y) (definition see equation 2.10 ) is calculated,
+it is not hard to calculate its variance
+V ar(y) =
+1
+H
+H∑
+y=1
+(V (y)? µ)2
+27
+where
+µ =
+1
+H
+H∑
+y=1
+V (y)
+and H is the height of image. Choi et al. (2009) point out that the standard
+variation of V (y) will reach its maximum value when the face is upright.
+Since the square root operation is monotonically increasing on [0,+∞),
+variance V ar(y) can replace its square root of the standard variation in
+Choi et al.’s method is used to simplify the calculation. For instance, when
+given the valley field of a facial image, the algorithm will try to tilt the
+image clockwise and anticlockwise within a range. (To balance speed and
+accuracy, during this process the range is chosen as ±15?, and the step for
+between each trial is 1?.) The function of V ar(y) on tilt degree is shown in
+figure 3.6c). The degree where the variance reaches its maximum is chosen
+to be the degree for correction, which will then correct all the three energy
+fields and the grayscale image. The correction result of the valley image in
+figure 3.6a is shown in figure 3.6b.
+V(y)
+y
+(a) V (y) on original
+valley field.
+V(y)
+y
+(b) V (y) on tilted valley
+field .
+?15 ?10 ?5 0 5 10 15
+60
+80
+100
+120
+140
+160
+180
+Tilted Angle
+Va
+ria
+nc
+e 
+of
+ V
+(y)
+(c) The change of
+V ar(y) with tilt degree,
+where the peak locates
+at ?8?.
+Figure 3.6: Tilt correction. In both a and b, V(y) is represented by blue
+line, and the vertical coordinates correspond to each horizonal line on the
+valley image. Original image source: http://strabismus.com/, 23 September
+2012
+3.2 Coarse Position Estimation
+The entire part is developed from the work of Choi et al. (2009). The
+detail for region extraction is not described in their publication, so a differ-
+ent method is tried below to find the best approach. Different from their
+method, only the valley field is used here, since the edge field contains more
+irrelevant information on the eyebrow and the nose, and it varies much on
+different image.
+28
+3.2.1 Vertical Estimation
+According to Choi et al. (2009), this step is to extract the peak located on the
+eyes in the valley field. In figure 3.7, all V (y) (which have been smoothened)
+has great responses in the region of eyes, then it should be quite straightfor-
+ward to extract these peaks. The paragraphs below describes all the trials
+the author has made.
+Gaussian Fitting
+0 50 100 150 200 250
+0
+10
+20
+30
+40
+50
+60
+70
+y
+V(
+y)
+(a)
+0 20 40 60 80 100 120 140 160 180 200
+0
+5
+10
+15
+20
+25
+30
+35
+40
+45
+y
+V(
+y)
+(b)
+0 50 100 150 200
+0
+10
+20
+30
+40
+50
+60
+70
+y
+V(
+y)
+(c)
+(d) Same to the image
+in figure 3.1a
+V(y)
+y
+(e) Same to the image in
+figure 2.6a
+V(y)
+y
+(f)
+Figure 3.7: Result of fit V(y) with 4 gaussian distribution. The estimated
+eye region, bounded by red horizontal lines in each image, is given by [µ?√
+2?, µ+
+√
+2?] of the highest distribution. (Image source for (f): Karna Eye
+Clinic Netra Niwas, http://squintneuroophthal.com/squint, 23 September
+2012.)
+The peak representing the eye is always the highest. The most common
+way to extract this peak is to use multiple gaussian distribution to fit the
+curve. A distribution with highest amplitude can represent all information
+of vertical eye range. When the method is applied onto V (y) in MATLAB,
+it is needed to specify the number of peaks fitting the curve. The author
+tried 4 of every image type since from the observation there will be 4 peaks
+at most in each V(y). However, the result is not ideal. In the illustration
+in figure 3.7 (a), (b), and (c) (corresponding to each image below), some
+peak are more likely to concentrate on same highest peaks, which makes
+every distribution narrower than the width of highest peak. From the result
+29
+in figure 3.7 (c), (d), and (e), it can easily be seen that the estimated eye
+range given by the highest distribution is smaller than the real eyes. They
+are more likely to be attracted by the strong valley of upper eyelid. It is
+also not applicable to reduce the amount of peaks in the fitting, because it
+is still hard to ensure them corresponding to all the peaks in V(y).
+Maximum Derivative Searching
+V(y)
+y
+(a)
+V(y)
+y
+(b)
+V(y)
+y
+(c)
+V(y)
+y
+(d)
+V(y)
+y
+(e)
+V(y)
+y
+(f)
+V(y)
+y
+(g)
+V(y)
+y
+(h)
+V(y)
+y
+(i)
+Figure 3.8: Peak extraction and maximum derivative searching
+Observing each V (y), it is easy to get the location of the maximum value,
+which can be used as the central line for iris. This is shown in first row of
+figure 3.8. However the result s not accurate. So smoothing is done on the
+function to spread the energy in the iris. The smoothed V (y) is denoted by
+Vs(y). It is achieved through a mean filer with a span of H/20, where H
+is the height of the tilted image. After that, the central lines become more
+accurate (see second row in figure 3.8 ).
+Then the author try to use some strategy focusing on local features. The
+eye region is actually bounded by the width of highest peak. When the top
+and bottom wall of the peak is found, the eye then should be bounded by
+30
+the walls. This is achieved by searching on the derivative of Vs(y), which is
+denoted by V ?s (y). The algorithm is described as below.
+Initialise: ytop ? ypeak; ybottom ? ypeak;
+while V ?s (ytop) < V ?s (ytop + 1) do
+ytop ? ytop ? 1;
+end while
+while V ?s (ybottom) > V ?s (ybottom ? 1) do
+ybottom ? ybottom + 1;
+end while
+What it actually found are steepest edges of the peak, denoted as ytop
+and ybottom. The third row in figure 3.8 shows their position on the image.
+If these boundary is used as eye region, it is still a little bit short to cover
+the eye. Especially, in figure 3.8i, due to the condition of hypertropia, the
+region covers only the revealed iris but lost some parts of eye whites. This
+method is still unsuccessful.
+Mixture of Interval Searching and Gaussian Fitting
+To make the boundary cover eye completely, the author searches monotone
+intervals on Vs(y) instead of the monotone intervals on V
+?
+s (y). Then it can
+find 2 nearest local minimums around the peak. The results on the three
+images above is shown in the first row of figure 3.9. It is obvious that these
+ranges are too wide for the eye region.
+Therefore, the author combines interval searching method with the gaus-
+sian fitting method together. A gaussian distribution will be fitted on the
+data (the blue area in images of second row in figure 3.9), which comes from
+V (y) but have been cut into the intervals corresponding to the monotone
+intervals in Vs(y) (blue area in the first row figures). Finally, the mean µy
+and standard variation ? of the gaussian can perfectly represent the eye re-
+gion, which is given as [µy ?
+√
+2?y, µy +
+√
+2?y]. The final estimated vertical
+eye region is shown in the third row of 3.9 (bounded by red lines). Although
+in the image of i, it seems taller than it should be, this can be corrected
+during the optimisation of the deformable template. From the experiments
+in later steps, it is found that the template is more likely to shrinking than
+extending.
+3.2.2 Horizontal Estimation
+There are different approaches to estimate horizontal eye position. Due to
+the property of strabismic eyes, the iris is not always in the centre when it
+is fixating forward. To speedup the optimisation, the initialised deformable
+template should hot set the iris in the centre - it should place the iris at an
+31
+0 50 100 150 200 250
+0
+10
+20
+30
+40
+50
+60
+70
+y
+V(
+y)
+(a)
+0 20 40 60 80 100 120 140 160 180 200
+0
+5
+10
+15
+20
+25
+30
+35
+40
+45
+y
+V(
+y)
+(b)
+0 50 100 150 200
+0
+10
+20
+30
+40
+50
+60
+70
+y
+V(
+y)
+(c)
+0 50 100 150 200 250
+0
+10
+20
+30
+40
+50
+60
+70
+y
+V(
+y)
+(d)
+0 20 40 60 80 100 120 140 160 180 200
+0
+5
+10
+15
+20
+25
+30
+35
+40
+45
+50
+y
+V(
+y)
+(e)
+0 50 100 150 200
+0
+10
+20
+30
+40
+50
+60
+70
+80
+y
+V(
+y)
+(f)
+V(y)
+y
+(g)
+V(y)
+y
+(h)
+V(y)
+y
+(i) eso4
+Figure 3.9: Mixture method of interval searching and gaussian fitting
+estimated position within the eyelids. Then, the rough estimation can be
+divided into two steps - eye range estimation and iris position estimation.
+Eye Range Estimation
+Blue dots in figure 3.10 represents the function F (x) (for definition, see
+equation eq:fx) of image in figure 3.1a and image in figure 2.6a respectively.
+To let it correspond to the similar function V (y), its name is changed to
+V (x). There are two symmetry bunch of peaks in each V (x). The aim of
+eye region extraction is to extract the width of each bunch of peak.
+Similarly to the condition on vertical direction, to fit this with 2 gaussian
+distribution is still not applicable. The reason for this is the iris concentrates
+too much energy on valley field, and what the gaussian distributions fit are
+energy of the irises. The fitted distribution cannot represent the whole eye
+region. As shown in figure 3.10a, nearby the great peaks, there are small
+peaks resulted by eyelids. They should contribute to the total eye width
+together with the great peaks. Since background may disturb V (x) and
+32
+0 50 100 150 200 250 300 350 400
+0
+5
+10
+15
+20
+25
+x
+V(
+x)
+ 
+ 
+data
+fitted curve
+data
+fitted curve
+data
+fitted curve
+(a) V (x) of the image in figure
+3.1a
+0 50 100 150 200 250
+0
+5
+10
+15
+20
+25
+x
+V(
+x)
+ 
+ 
+data
+fitted curve
+(b) V (x) of the image in figure
+2.6a
+Figure 3.10: V(x) and the result of 2 gaussian fitting of it.
+produce peaks at the corner (see figure 3.10a), to add up the quantity of
+distributions may let the fitting be misled and produce fault result. More-
+over, to simply expand the extracted width of main peaks will not work,
+since in strabismic images the iris may locate at the side of eye. As it shown
+in figure 3.10b, extend width of right peak will result in an error towards left.
+The solution of this problem is to reduce the effect of high energy con-
+centration in the iris. A threshold of 12 max{V (x)} is used to cut off the
+high peak in V (x). Any value greater than this value will be set equal to
+it, then V (x) has only the lower half left. The function V (x) is shown in
+figure 3.11a, and the filled area represents the lower half of V (x). Then, to
+spread the energy, it is smoothed, and the result is denoted as Vs(x). The
+smoothing is completed by the mean operator with a span of W/10 (where
+W is the width of the tilted image).
+0 50 100 150 200 250 300 350 400
+0
+5
+10
+15
+20
+25
+V(
+x)
+x
+(a) The cut operation on figure
+3.10a, where all energy above the
+threshold is removed.
+0 50 100 150 200 250 300 350 400
+0
+5
+10
+15
+20
+25
+x
+V(
+x)
+ 
+ 
+fitted curve
+(b) Gaussian Fitting of Vs(x).
+Figure 3.11: Extraction of horizontal eye ranges.
+33
+Now two gaussian can be fitted fit to Vs(x) (shown in figure 3.11b).
+Although the energy from background is still existing, it is much lighter
+when compared to the solid strong energy from the two eyes. It will not
+strongly affect the fitting, Then the range [µx ?
+√
+2?x, µx +
+√
+2?x] of each
+gaussian (represented by red vertical lines in figure 3.11b) can describe the
+estimated location of corresponding eye. The estimated region is also marked
+in figure 3.12 by red line. Although in figure 3.12b, the left eye region still
+has an inward error, it has already been minimised when compared with the
+method above. Please note since the resource is facial photograph, the eye
+in the left of the image is actually the right eye, whereas the eye on the right
+is the left eye.
+(a) Result of figure 3.1a (b) Result of figure 2.6a
+Figure 3.12: Estimated horizontal eye regions shown within the vertical
+range of eye.
+Iris Position Estimation
+0 50 100 150 200 250 300 350 400
+0
+5
+10
+15
+20
+25
+V(
+x)
+x
+(a) The upper half of V (x) in
+figure 3.11a
+0 50 100 150 200 250 300 350 400
+0
+5
+10
+15
+20
+25
+V(
+x)
+x
+(b) Vs(x) in the region of
+[0, µR +
+√
+2?R], [µL ?
+√
+2?L,W ]
+Figure 3.13: Iris horizontal position estimation.
+It would be ideal if the upper halves can be used to extract iris position.
+However, it fails. Figure 3.13a illustrates the upper half of V (x) in figure
+3.11a. The peaks in blue and red resulted from the right and left iris cor-
+respondently. The author has tried to use the locations of maxima (result
+on images in figure 3.1a and figure2.6a is shown in the left column of figure
+3.14), and the mean of the peak (shown in the right column in figure 3.14) as
+horizontal coordinate for the iris. It is clear that the later method performs
+better than the former one.
+34
+However, when they are compared with the location of peaks pR, pL
+(shown in the central column in figure 3.14) in the Fs(x), it seems that the
+peaks are closer to the centre of irises. Consequently, the iris central position
+is estimated from the coordinates of pR, pL. Probable reason for this is the
+smoothing operation has polish the top plane produced by threshold, and
+the peaks in Fs(x) are just centres of the iris energy peak .
+(a) (b) (c)
+(d) (e) (f)
+Figure 3.14: Different approach of iris centre estimation.
+3.3 Eye Extraction
+3.3.1 Modification of Deformable Template
+Due to probable mistake in publication, some of the energy terms in the de-
+formable template proposed by Xie et al. (1994) is unreasonable. Based on
+the personal understanding of both Yuille et al.’s and Xie et al.’s template,
+the author here does some correction on the improved template. Regarding
+the property of strabismus image, some terms are also being replaced.
+Firstly, the energy term E3 is attracted by peak field, so it should have
+a smaller value when the eye white in template covers more peak energy.
+Therefore a “1 -” should be added in front of the right hand of the definition.
+Due to the property of strabismic eye, the eye whites may not appear if
+the eye always poses extremely. Then to calculate the peak within small
+window on mid-point may be meaningless. To attach to the eye whites
+more precisely, the author use the area of the entire exposed eye whites
+to calculate summation of peak field. This area is got by the area within
+parabolas subtracting the area of iris. Then E3 becomes:
+E3 = Ep = 1? 1
+Areaeyewhites
+∑
+j?eyewhites
+b
+(P )
+j
+Secondly, the image potential of iris should have lower value when it
+covers more dark pixels:
+E5 = Eic =
+k5
+Areacircle
+∑
+i?circle
+gi
+35
+and the image potential of edge should also have lower value when it covers
+more dark edge:
+E7 = Eie =
+k7
+Lengthparabolas
+∑
+i?parabolas
+gi
+Thirdly, due to the condition of strabismus again, the internal energy
+term E8 will not work. The task of it is trying to pull the iris and the centre
+of parabolas together, but iris of a strabismic eye is more likely to go to
+extreme positions. If this energy term is applied to strabismus image, it can
+probably slow down the optimisation or lead to large error.
+On the other hand, the radius of the iris in the image is a crucial param-
+eter for final diagnosis. Usually, radius of both irises should be the same.
+If the radius of irises rL and rR is compared and the difference between
+them can be minimised, they can help each other to find a suitable value.
+Therefore, the internal term E8 now has been replaced by:
+E8 = k8|rL ? rR|
+This change will make an improvement on the the accuracy of the final di-
+agnosis.
+Finally, it is obvious the iris cannot appear beyond the parabolas. So
+the author redefines the area of the iris as the intersection of the disk and
+area within parabolas. This change is especially useful when the eye is in
+a extreme position. It can help the template to be less affected by the skin
+around the eye.
+3.3.2 Implementation of Template-based Extraction
+Calculation Energy Terms
+That optimisation of deformable templates uses Levenberg-Marquardt algo-
+rithm, where the partial derivative of each energy terms will be calculated
+and supervised the step of parameter change. Since all the image terms
+( from E1 to E7) are not linear function of the parameters. Calculation
+of these terms will be quite time-consuming. Moreover, getting the partial
+derivative means to calculate them several times with different parameter
+values in a trial.
+To accelerate the optimisation, the author created a mask for each en-
+ergy. Each mask is a binary image, which has the size to all the fields and
+the grayscale image. A mask will set all “active” pixel for the current term
+to 1, while the “inactive” pixel will be set to zero in the mask. The word
+36
+“active” here means this pixel will take part in the calculation of current
+term. To calculate each energy term, the mask corresponds to it will be
+covered on the energy field, then the summation of pixels leaked by the
+mask is the energy value for this term. Any change in parameter set X will
+change the related mask, but the way to calculate energy summation keeps
+the same, which will certainly accelerate the process of partial derivatives.
+(a) Disk (b) Area in parabolas (c) M3
+(d) M1 (e) M7 (f) M4
+(g) Boarder of M1 (h) M2
+Figure 3.15: Masks for energy calculation. (These masks are created for the
+left eye in the image of figure 3.17.)
+Since some masks are related to others, the creation of masks is not only
+drawing shapes, but also do logical and morphological operations between
+them. All the created mask is illustrated in figure 3.15, but some shared
+masks is only illustrated once (i.e. masks shared by E1 and E5, and by E3
+and E6).
+The masks are created consequently. Firstly, a disk is created for iris.
+The condition of it is given as :
+(x? xc)2 + (y ? yc)2 ≤ r2
+where xc, yc are coordinates of iris centre ~Xc on x and y direction. The
+pixels satisfying this condition will be set to 1 in the mask. It is shown in
+figure 3.15a. Another basic shape is the area bounded by parabolas, whose
+37
+condition is given as
+(
+sin(?)(y + ye) + cos(?)(x+ xe)
+b
+)2 ? cos(?)(y + ye)? sin(?)(x+ xe)
+a
+≤ 1
+(
+sin(?)(y + ye) + cos(?)(x+ xe)
+b
+)2 +
+cos(?)(y + ye)? sin(?)(x+ xe)
+c
+≤ 1
+where xe, ye are coordinates of eye centre ~Xe on x and y direction. The
+pixels satisfying both conditions will be set to 1 in the mask.
+Then M1 (shown in figure 3.15d) is created by the intersection of the disk
+and area in parabolas. M7 (figure3.15e) is created by the area in parabolas
+when its erosion is substracted (see subsection 2.2.1). M3 (figure 3.15c) ,
+representing the eye whites, is created by subtraction of area inside parabolas
+and M1. The same way to extract M7 can be used to get the boarder of
+iris (figure 3.15g), which then union with M7 to create the mask M2 (figure
+3.15h).
+Finally, creating the mask M4 is done by finding two corner points of the
+eye, and then drawing a 3-by-3 around each point.
+(a) M1 Covering on the Peak
+Field for E1 Calculation.
+(b) M3 Covering on the Image
+Field for E6 Calculation.
+Figure 3.16: Masks applied on the potentials for energy calculation.
+Then, the masks can be pixel-by-pixel multiplied with the corresponding
+potential fields, and the summation of all nonzero pixel values is the energy
+for current term. The pixel-by-pixel multiplication can be completed by the
+“.*” operator in MATLAB. The effect of multiplication is shown in figure
+3.16.
+Levenberg-Marquardt Optimisation
+In the Euclidean plane, x and y axis are orthogonal, which requires that the
+coordinate on each axis should be optimised separately. So in the implemen-
+tation, parameters ~Xc is split into two coordinates xc, yc for computation.
+Similarly, ~Xe is split into xe, ye. Altogether, there are 9 scalars controlling a
+template. The parameters X = {xc, yc, xe, ye, a, b, c, r, ?} are first initialised
+38
+with estimated values in the former step. Take the left eye for example,
+the parameters will be initialised by: yc, ye ? µy; a, c ?
+√
+2?y; xe ? µL;
+b? √2?L; xc ? pL; ? ? 0. The initialised template is shown in 3.17a. The
+green curves for illustrating the template is complete by an addition of M2
+to the image.
+(a) Initialised template (b) Optimised template
+Figure 3.17: Deformable template optimisation. The templete
+is represented by green curves. Original image source: “Child
+with amblyopia”, when should my child have an eye exam, URL
+http://www.oregoneyes.net/blog/when-should-my-child-have-an-eye-
+exam/, 24 September 2012.
+According to Xie et al. (1994), the template can find its optimum state
+through the Levenberg-Marquardt algorithm. The algorithm is to change
+parameters to a state where the total energy function is minimised. Each eye
+in the image has an individual template. Only in the calculation of E8, they
+share the radius of the iris to each other. The framework of the implemen-
+tation is illustrated below. Here parameters X = {xc, yc, xe, ye, a, b, c, r, ?}
+in step k are denoted by Xk = {x1,k, x2,k, . . . , x9,k}.
+for k = 1? klimit do
+Xk ? Xk?1 + dk ? 1; (equation 2.14)
+Fk(X)?
+∑10
+i=1WiE
+2
+i (Xk); (equation 2.13)
+if Fk > Fk?1 then
+?? ? ? ?;
+end if
+if |dk| ≤ dlimit then
+terminate;
+end if
+end for
+where weights W are constants set before the optimisation process. W are
+the only coefficients controlling the length of the increment dk. Ideally, it
+should be proportional to the size of the facial features. Here the author
+use the estimated distance between the eye as a measurement of the facial
+size. To make reasonable values, W also has to be normalised before the
+multiplication with eye distance. To sum up, given a set of preset weights,
+39
+it will be processed via the following expression:
+Wi = ?|xeL ? xeR| Wi∑10
+i=1Wi
+where ? is an constant coefficient controlling the length of W . Based on
+experiments, it performs best with a value of 1/15.
+The increment dk in each step is given by the solution of equation 2.15:
+(JTk WJk + ?I)dk = ?JTk WFk
+where J is the 10-by-9 Jacobian matrix and ? is a coefficient to balance
+the speed and accuracy. Based on the observation of the derivative of en-
+ergy functions, the Jacobian matrix can supervise the parameter change
+towards optimum. Each element in the Jacobian matrix is defined as a par-
+tial derivative Ji,j,k = ∂Ei/∂xj,k Since each parameter in the experiment
+is discrete, and not all image energy terms are differentiable functions, the
+partial derivative is not achievable. Each element is then replaced by the
+central differences of a discrete function:
+Ji,j,k =
+Ei(x1,k, . . . , xj,k + 1, . . . , x9,k)? Ei(x1,k, . . . , xj,k ? 1, . . . , x9,k)
+2
+In the experiment, all the elements in J are consequently calculated by
+the above expression in each optimisation step, and the optimisation will
+terminate the optimising cycle when it reaches the upper limit klimit. The
+limit is set to 10 in the experiment. Moreover, the author implemented some
+external strategy to control the optimisation. The coefficient ? is first set
+to 0.2, and it will be multiplied by a ratio ? once Fk(X) becomes greater.
+The effect of it is to make the algorithm attempt to find a greedy route
+when its total energy does not decrease. Another process of control is to
+terminate the loop when the length of dk is less than the lower limit dlimit,
+which is 1 in the experiment. This can stop optimisation when the template
+is in its optimum, therefore total time can be saved during processing. An
+example of optimised template is shown in figure 3.17b. Due to a good prior
+estimation, the optimisation terminates after 6 steps and reached a very
+good state.
+3.4 Reflex Extraction
+The last step carried on the the image is to get the location of the reflex.
+Within the extracted iris, the reflex appears as a small bright dot. Whatever
+the colour of the iris is, the reflex on cornea should be much brighter than
+the iris for most people. This should be competed on the greyscale image
+but not peak image, since the peak image can highlight local bright features
+40
+and mislead the process. In a grayscale facial image, it is reasonable to pick
+up the brightest pixel as the reflex. However, on a medium size image, the
+reflex may appear like a small bright disk (seen in figure 3.18a). All pixels
+within this disk may have the same high value. Determined by the internal
+algorithm of the experimental platform, the chosen maximum pixel may not
+be located at the centre of the disk. If the coordinate of this pixel is used
+for the location of the reflex, the difference between this and the real reflex
+centre may lead to a obvious error in the diagnosis. A error of 6 PD may
+result from the difference of 1 pixel when the iris has a size of 40-pixel width.
+(a) Greysacle iris image
+410 420 430 440 450 460 470
+120
+130
+140
+150
+160
+170
+(b) Contour map of the iris
+Figure 3.18: Corneal reflex extraction on the image of figure 3.17
+Therefore, to extract the location as accurate as possible, the average of
+the coordinates of these bright pixels is needed. Due to the performance of
+the template in the previous step, the area of the extract iris may still cover
+a part of eyelid, which is also bright on the image (the small triangle on the
+left in figure 3.18a). To use a gaussian distribution will be disturbed by the
+eyelid, while to calculate the weighted average of all pixels will not work
+for the same reason. The author finally used the average of the brightest
+pixels as the result. If the iris image is denoted by I, and location of reflex
+is (xr, yr), the method can be given by:
+xr = xi, yr = yi, where xi, yi ? {I(xi, yi) = max I}
+The contour map of values is shown in figure 3.18b, from where it is seen
+that although the triangle of the eyelid has a large area, its amplitude is
+lower than that of the main reflex. So if only the pixels with highest value
+are selected, the eyelid can have no effect. A result of the reflex extraction is
+shown in figure 3.19. It is easy to prove that this method works on whatever
+size of reflex: if only one pixel has the peak value, it should be the centre of
+the reflex; otherwise, the pixels that share the peak value should all come
+from the reflection and their centre can be used as the reflex centre. This
+method also works on non-circle reflexes.
+41
+Figure 3.19: Extracted reflexes on the image of figure 3.17. They are repre-
+sented by the small red crosses in the iris.
+3.5 Diagnosis
+The definition of Hirschberg ratio can directly give the expression to calcu-
+late the iris deviation in the prism diopter: multiplying the ratio of distance
+between the centre of the iris and the reflex has its unit as mm. The reflex
+for the eye had been extracted in former step, and the centre of the iris is just
+Xe. However, they are all in the image coordinates. A transition is needed
+to convert the distance between these two points to the world coordinates.
+Fortunately, there is an important property for the human eye: the size of
+the iris will be unchanged from the age of 1 yeas old. According to Davis
+and Becherer (2005) the average iris diameter (formally called Horizontal
+Visible Iris Diameter, HVID) of adults and children are the same 11.8mm.
+Based on this constant, the ratio between the world coordinates and image
+coordinates can be easily calculated, given as HV ID/2r. Then it makes
+the strabismic deviation become accessible from the image. The horizontal
+deviation is given by
+D = |xr ? xc| ? HV ID
+2r
+?HR;
+where HR is the Hirschberg Ratio, a constant of 22 PD/mm according to
+Eskridge et al. (1988). In order to distinguish the deviation of esotropia
+and exotropia, the author defines the positive direction of the deviation: a
+positive value corresponds to the eye turning outward, and a negative value
+corresponds to “squint” eyes.
+In the experiment, only the horizontal prism diopter is calculated. The
+reasons for this are listed below.
+1. In the experiment, the test images there are conditions of either es-
+otropia or exotropia. These two condition also have an overall higher
+presence than vertical deviated strabismus.
+42
+2. The experiment sometimes shows that the deformable template can
+have a larger error on vertical direction. Focusing on the horizontal
+direction can minimise the vertical error.
+3. The estimation method by (Schwartz, 2006) is only applicable for hor-
+izontal misalignment. It is hard to visually estimate the reference
+value on the vertical direction. Therefore the correction of vertical
+strabismus cannot be quantified.
+The final diagnosis is given by a very conservative strategy. Consider-
+ing the probable error, values absolutely greater than 20 PD can trigger a
+statement of strabismic eyes. If the eye has a deviation smaller than -20PD,
+the system will output the text “Esotropia” and show the prism diopter. A
+similar output of exotropia will be made when the deviation is greater than
+20PD. Figure 3.20 shows a screen shot of a diagnostic output.
+Figure 3.20: Screen output of the diagnosis on image 3.17.
+43
+Chapter 4
+Result and Analysis
+Quantification of the experimental result is done by comparing the result
+value in PD with visually estimated reference value. The diagnosis does
+not take part in the result because it includes only conditional statements,
+and will not show an error. The reference value is produced according to
+the estimating method by (Schwartz, 2006), illustrated in figure 2.5. Here
+more conditions (15 PD, 45 PD, and 75 PD) have been added to describe
+the deviation between the key values of 0 PD, 30 PD, 60 PD, and 90 PD.
+Regarding the error of visual assessment, the experiment values within the
+interval of (-15 PD, 15 PD) of the reference value can all be marked as rea-
+sonable values. For instance, the experimental result of either 36 PD or 18
+PD can both be the correct value when a reference of 30 PD is given.
+The experiment is carried out in the MATLAB environment on a Mac-
+book Pro with an Intel i7 quad core processor. Normally the initialisation
+will complete instantly and each step of the template optimisation takes less
+than 0.5 seconds. The speed highly depends on the image size. It can be
+obviously slow when the image resolution is higher than 800x600. There-
+fore, most image have been scaled to a width of 400 pixels to accelerate the
+processing.
+There are a total of 42 images for the experiment. The whole image set
+covers the conditions of esotropia, exotropia, and pseudostrabismus. In the
+experiment, the system can measure the deviation of both eyes correctly on
+24 out of 42 images. The correction rate of the images is 57.14%. There
+are two images on which the algorithm has extreme fault in the eye location
+estimation. The detailed experimental result and reference values of each
+image set are presented in a table which can be found in the appendix A.
+If the statistics is carried on individual eyes, 64 out of 84 eyes can get
+a correct measurement by this algorithm, which makes the correction rate
+44
+of eyes to be 76.19%. It is obvious that the eye correction rate is higher
+than the image correction rate. The reason for that is some partially correct
+image are classified to the problematic group, but the correctly measured
+eye in them contributes to the correct eye group. Figure 4.1 illustrates the
+correspondence of experimental result and their reference values. Then fig-
+ure ?? shows the distribution of the error.
+?100 ?80 ?60 ?40 ?20 0 20 40 60 80 100
+?150
+?100
+?50
+0
+50
+100
+150
+experimental result (PD)
+re
+fe
+re
+nc
+e 
+va
+lu
+e 
+(P
+D)
+Figure 4.1: Correction of the experimental result. The y axis represents the
+experimental value and the corresponding reference value is represented by
+x coordinate. The red line is the place where y = x. Ideally all dots should
+be located on this line. The grey lines y = x ? 15 and y = x + 15 are
+the boundaries for correct data points. 64 out of 84 data points are locate
+within the boundary. On the points with reference values of 15 PD and 30
+PD, there is a trend for their experimental value becoming smaller, while
+the points with reference value 0 have a concentration of greater values.
+By observing Figure 4.1 and 4.2 together, it is obvious that an experi-
+ment value is more likely to have a small positive error especially when it
+is around 0 PD. This phenomenon is more clear in figure 4.3, where the
+experimental values of only pseudostrabismus image set are illustrated. A
+possible reason for this phenomenon is the error of reference value . The
+author’s subjective assessment may result in inaccurate reference values.
+Taking pseudostrabismus for example. When the image is marked as pseu-
+dostrabimus, the deviation of both eye will more likely be set as 0 by the
+author. However, the reflex may not be located at the perfect centre of the
+iris, and the true deviation can be calculated by the proposed method. So
+45
+?150 ?100 ?50 0 50 100 150 200
+0
+2
+4
+6
+8
+10
+12
+error (PD)
+co
+u
+n
+t
+Figure 4.2: Error distribution. Most of the errors are in the interval of [-10
+PD, 20 PD], and there is a data concentration around the error of -20 PD.
+the error of this type is actually not due to the mistake of algorithm, but the
+inaccuracy of reference values. Moreover, the positive experimental values
+reveal that the angle kappa for these pesudostrabismic infants are mostly
+temporal.
+In terms of individual images, the experimental results are mostly visu-
+ally acceptable. As shown in figure 4.4, the parabolas describing the eyelid
+may not fit perfectly to the real eyelid, but this is not signification to the
+extraction of the iris. The job of shapes other than the circle in the template
+is to help the circle find its right location. Both images shown have the iris
+accurately extracted.
+Some images failed in the experiment. Figure 4.5 and figure 4.6 are ex-
+amples of the failed images. The former example reveals its performance
+when the eye is in extreme position, while the latter example proves this
+method is sensitive to blurring and environmental lighting direction.
+46
+?15 ?10 ?5 0 5 10 15
+?30
+?20
+?10
+0
+10
+20
+30
+40
+experimental result (PD)
+re
+fe
+re
+nc
+e 
+va
+lu
+e 
+(P
+D)
+Figure 4.3: Correspondence of the experimental value and reference value of
+pseudostrabismus image set. Since the eyes are all pseudostrabismic, most
+reference values are set to 0. But most of the experimental values turned
+out to be acceptable positive value.
+(a) A result on a esotropia
+image.
+(b) A result on pseudostrabimus
+image. The image is identical to
+the one in figure 2.3
+Figure 4.4: Some good results. (Image source for a: Fig.1 “Adult strabismus,
+or misaligned eyes, can be surgically corrected.”, Adult Strabismus, URL
+http://www.aapos.org/terms/conditions/11)
+47
+(a) Final state (b) Initialised template (c) Valley field
+Figure 4.5: A failed example where the reflex is close to eye
+whites. (Image Source:“Strabismus”, Eye clinic of Racine, Ltd.,
+http://www.eyeclinicofracine.com/index.cfm/pediatric/strabismus.) The
+left eye has an obvious esotropia, but the iris in the template is attached
+to the eye whites. The error begins during the initialisation, where the es-
+timated left iris location is already in the whites. These faults are caused
+by the valley field, in which the left iris has a very low response, while the
+texture created by the reflex on the white has a concentration of more en-
+ergy. Similar conditions are present more on the exotropia images, where
+the reflex can be located on the eye whites. Some representation other than
+valley field is needed to resolve this problem.
+(a) Final state (b) Initialised template (c) Valley field
+Figure 4.6: Another failed example caused by blurring. (The image is iden-
+tical to the one in figure 3.6.) The result is also revelent to the light, which is
+not a typical Hirschberg light but located on top of the patient. They both
+make the upper eyelid dark and strong, which responds greatly on the valley
+field. Then it attracts the template in both initialisation and optimisation.
+48
+Chapter 5
+Conclusion and Further
+Work
+5.1 Conclusion and Critical Evaluation
+In conclusion, this method achieved the objective described in chapter 1.
+It can automatically access the condition of strabismus (currently only es-
+otropia and esotropia) from a properly captured facial image, although the
+final correction rate is 57% overall. The experimental system could probably
+make greater error when the eye is in an extreme position.
+The result of the diagnosis highly depends on the quality of the Hirschberg
+image, where any blur or problematic lighting can cause a failure in the
+proposed method. To get the best image as possible, the photographer is
+advised to use the built-in flashlight as the light source and stand with a
+distance away from the patient. This is to avoid blurring as well as protect-
+ing the patient from the bright light source.
+The deformable template optimisation process is the key algorithm of
+this project and the template should be initialised within an estimated eye
+region. A well-optimised template highly depends on a suitable eye region.
+The estimating algorithm is aimed at giving a quick response by analysing
+the valley field. Although multiple different methods have been studied,
+the best algorithm for vertical and horizontal estimation are still not totally
+reliable. Some robust representation of the images may be able to correct
+wrong estimation in minor occasions.
+The iris extraction is done by deformable template estimation, which
+is effective and accurate with a reasonable initialisation. The drawback of
+it is that the processing time is relatively long due to the partial differ-
+ence calculation in the Levenberg-Marquardt minimisation. To process a
+49
+medium-sized image usually takes a few seconds, which makes the proposed
+method not suitable for real-time diagnostic system.
+The author then proposed the method to extract the reflex and adapted
+the equation to quantify the eye deviation based on the Hirschberg ratio.
+Both of these steps make few errors.
+When the implementation has been completed, the author found a re-
+search carried out by Dallyson Sousa De Almeida et al. (2012), which has
+exactly the same goal as this project. They take a similar framework but
+implement some more complex approaches. They first build an aid eye win-
+dow by similar geographical functions. Then, to build the narrower eye
+bounding box, an SVM based detector is implemented to give a reliable es-
+timation. This approach is much more robust and smart than the one in this
+project. The drawback of it is that prior training is needed for the SVM, and
+the computational complexity is higher than the fast method in this project.
+Another main algorithm of the eye extraction by Dallyson Sousa De Almeida
+et al. (2012) is importing the Hough transformation to detect the circle in
+the image, and then pick out the boarder of the iris by its strength in Hough
+space. An obvious advantage of this algorithm is the short processing time.
+However, in their publication, there is no description of the response of
+Hough transformation when the eye is in the extreme position. If the Hough
+transformation has a light response to an extremely posed iris, it may not
+be able to replace the approach of deformable template.
+The research conducted by Dallyson Sousa De Almeida et al. (2012) has
+a very high matching rate, which is as a result of the high quality image sets
+and professional ophthalmological supervision. In terms of this project, the
+accuracy is enough for a qualitative analysis but the result is not currently
+reliable because a data set for accurate diagnosis is needed for detailed error
+analysis. Simple visual assessment of the image is not enough. Lack of
+the professional reference data is one of the limitations of this project. All
+the prior knowledge in opthalmology is learnt by the author, and all the
+data set is collected by using Google image search. For each image, there
+is no professional reference diagnosis. Furthermore, all the reference data
+is personally estimated by the author. All these reasons make this project
+hard to get a high reputation in terms of accuracy.
+5.2 Recommendations for Further Work
+Other than implementing SVM for eye bounding box estimation and replac-
+ing the deformable template with the approach of hough transformation,
+50
+there are some probable improvements on this project.
+1. Capture a high quality image set for the experiment and let oph-
+thalmologists give corresponding diagnosis for result reference. This
+needs the cooperation of clinics and patients, which currently cannot
+be achieved by the author.
+2. Add more representation of the image for eye window estimation. If a
+smile threshold image is used together with the valley image, the iris
+may be extracted more accurately.
+3. Model the cornea following the expression given by Brodie (1992).
+Then the calculation of deviation is no longer a linear function, and
+the result for large deviation can be more accurate.
+4. Adapt to a real time video system to produce further diagnosis. If the
+extraction has been speed by adapting the method of Dallyson Sousa
+De Almeida et al., the system can try to track the iris and access the
+ocular motley of the patient.
+51
+Bibliography
+D. L. Bremer, E. A. Palmer, R. R. Fellows, J. D. Baker, R. J. Hardy, B. Tung,
+and G. L. Rogers. Strabismus in premature infants in the first year of life.
+Archives of Ophthalmology, 116(3):329–333, March, 1998. ISSN 0003-
+9950.
+S. E. Brodie. Corneal topography and the hirschberg test. Applied Optics,
+31(19):3627–3631, Jul 1992. ISSN 0003-6935.
+J. K. Choi, S. T. Chung, J. Kim, S. Cho, Y. Kim, S. Ki, S. Choi, J. Yang,
+and T. Kim. Reliable and fast eye detection. Proceedings of the 9th Wseas
+International Conference on Signal Processing, Computational Geometry
+And Artificial Vision (ISCGAV’09), pages 78–82, 2009. ISSN 1790-5109.
+R. P. Crick and P. T. Khaw. Squinting eyes (strabismus) – disorders of ocular
+motility. In A Textbook of Clinical Ophthalmology: A Practical Guide to
+Disorders of the Eyes and Their Management (3rd edition), pages 221–
+228, 239. World Scientific Pub. Co. Inc., February 2003.
+J. a. Dallyson Sousa De Almeida, A. CorreˆA Silva, A. Cardoso De Paiva,
+and J. Antonio Meireles Teixeira. Computational methodology for auto-
+matic detection of strabismus in digital images through hirschberg test.
+Comput. Biol. Med., 42(1):135–146, Jan. 2012. ISSN 0010-4825. doi:
+10.1016/j.compbiomed.2011.11.001. URL http://dx.doi.org/10.1016/
+j.compbiomed.2011.11.001.
+R. L. Davis and P. D. Becherer. Techniques for improved soft lens fit-
+ting, January 2005. URL http://www.clspectrum.com/articleviewer.
+aspx?articleid=12852.
+J. B. Eskridge, B. Wick, and D. Perrigin. The hirschberg test - a double-
+masked clinical-evaluation. American Journal Of Optometry And Physi-
+ological Optics, 65(9):745–750, September 1988. ISSN 0093-7002.
+R. Fisher, S. Perkins, A. Walker, and E. Wolfart. Adaptive thresholding,
+2003. URL http://homepages.inf.ed.ac.uk/rbf/HIPR2/adpthrsh.
+htm.
+52
+T. Kanade. Computer recognition of human faces. Interdisciplinary Systems
+Research, 47, 1977.
+J. Lee, R. Haralick, and L. Shapiro. Morphologic edge detection. IEEE
+Journal of Robotics and Automation, 3(2):142 –156, april 1987. ISSN
+0882-4967. doi: 10.1109/JRA.1987.1087088.
+Y. LeGrand and S. ElHage. Physiological Optics. Springer Series in Optical
+Sciences, 1980.
+P. Maragos. Morphological filtering for image enhancement and feature
+detection. In A. C. Bovik, editor, Handbook Of Image And Video Process-
+ing, Communications, Networking and Multimedia Series, chapter 3.3.
+Elsevier Academic Press, November 2004. ISBN 9780121197926. URL
+http://books.google.co.uk/books?id=UM\_GCfJe88sC.
+J. M. Martinez, J. M. Holmes, N. N. Diehl, and B. G. Mohney. Incidence
+of strabismus in an adult population. ARVO Annual Meeting Abstract
+Search and Program Planner, 2011, May 2011.
+H. Mirzaie. Review of strabismus, March 2009. URL http://www.
+slideshare.net/hmirzaeee/review-of-strabismus.
+S. Mukhopadhyay and B. Chanda. A multiscale morphological approach
+to local contrast enhancement. Signal Processing, 80(4):685 – 696, 2000.
+ISSN 0165-1684. doi: 10.1016/S0165-1684(99)00161-9. URL http://
+www.sciencedirect.com/science/article/pii/S0165168499001619.
+M. M. Parks, C. J. Kelly, and P. R. Mitchell. Alignment. In Duane’s oph-
+thalmology on CD-ROM, 2006 editon, volume 1, chapter 6. Philadelphia:
+Lippincott Williams & Wilkins, 2006.
+P. M. Riddell, L. Hainline, and I. Abramov. Calibration of the hirschberg
+test in human infants. Investigative Ophthalmology & Visual Science, 35
+(2):538–543, February 1994. ISSN 0146-0404.
+R. P. Rutstein, M. S. Cogen, S. A. Cotter, K. M. Daum, R. L. Mozlin,
+and J. M. Ryan. Optometric Clinical Practice Guideline, Care of the
+Patient with Strabimus: Esotropia and Exotropia. American Optometric
+Association, 243 N. Lindbergh Blvd., St. Louis, MO 63141-7881, 2011.
+G. S. Schwartz. The Eye Exam: A Complete Guide, page 102. Slack Incor-
+porated, 1st edition, January 2006.
+X. Xie, R. Sudhakar, and H. Zhuang. In improving eye feature-extraction us-
+ing deformable templates. Pattern Recognition, 27(6):791–799, Jun 1994.
+ISSN 0031-3203. doi: 10.1016/0031-3203(94)90164-3.
+53
+A. L. Yuille. Deformable templates for face recognition. Journal of Cognitive
+Neuroscience, 3(1):59–70, 1991. ISSN 0898-929X. doi: 10.1162/jocn.1991.
+3.1.59.
+A. L. Yuille, P. W. Hallinan, and D. S. Cohen. Feature-extraction from faces
+using deformable templates. International Journal of Computer Vision,
+8(2):99–111, Aug 1992. ISSN 0920-5691. doi: 10.1007/BF00127169.
+54
+Appendix A
+Full Experimental Data
+A.1 Esotropia Image Set
+Left Eye Right Eye
+Experiment Reference Correction Experiment Reference Correction
+89 -90 7 0 X
+-16 30 -22 -30 X
+20 -30 0 0 X
+-14 -15 X 7 0 X
+6 0 X -34 -30 X
+-11 30 43 -45
+-65 -60 X 0 0 X
+-26 0 -26 -30 X
+7 0 X -29 -30 X
+-24 -30 X -3 0 X
+-31 -30 X 6 0 X
+-48 -45 X 5 0 X
+Initialisation Fail - -
+-124 <-90 X 11 15 X
+65 -45 -36 -30 X
+-24 -30 X 0 30
+-18 30 0 0 X
+-71 -60 X 31 30 X
+-59 -60 X 11 15 X
+-22 -30 X 11 15 X
+-35 -45 X 8 0 X
+130 0 43 -45
+20 30 X -43 -45 X
+-86 -30 -10 15
+55
+A.2 Exotropia Image Set
+Left Eye Right Eye
+Experiment Reference Correction Experiment Reference Correction
+12 15 X -68 60
+106 0 59 60 X
+119 30 106 >90 X
+-10 0 X 27 30 X
+12 30 6 0 X
+49 45 X 3 0 X
+112 >90 X 0 0 X
+-14 15 7 0 X
+100 90 X 13 15 X
+35 30 X 47 45 X
+A.3 Pseudostrabismus Image Set
+Left Eye Right Eye
+Experiment Reference Correction Experiment Reference Correction
+-5 0 X 15 15 X
+Initialisation Fail - -
+0 0 X 14 0 X
+13 0 X 9 0 X
+11 0 X 25 0
+35 0 35 0
+4 0 X 9 0 X
+A.4 Other Image Set
+Left Eye Right Eye
+Experiment Reference Correction Experiment Reference Correction
+32 30 X 41 30 X
+9 15 X -17 -15 X
+-6 -15 X 17 15 X
+56
